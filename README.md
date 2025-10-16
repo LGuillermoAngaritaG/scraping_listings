@@ -18,6 +18,12 @@ A config-driven web scraper for extracting property listing data from Colombian 
 - Incremental CSV saving (data saved continuously)
 - GitHub Actions automation with scheduled runs
 
+### Data Analysis
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/LGuillermoAngaritaG/scraping_listings/blob/main/analyze_artifacts.ipynb)
+
+Use the Jupyter notebook to analyze scraped data with pandas, visualizations, and statistics.
+
 ## Installation
 
 ### 1. Clone and Setup
@@ -110,11 +116,7 @@ Scraped data is:
 2. Select workflow
 3. Click **Run workflow**
 
-## Data Analysis
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yourusername/scraping_listings/blob/main/analyze_artifacts.ipynb)
-
-Use the Jupyter notebook to analyze scraped data with pandas, visualizations, and statistics.
 
 ## Project Structure
 

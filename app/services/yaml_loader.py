@@ -1,5 +1,5 @@
 import yaml
-from models.scraper import ScraperInput, SimpleInfo, DynamicInfo
+from app.models.scraper import ScraperInput, SimpleInfo, DynamicInfo
 
 class YamlLoaderListings:
     def __init__(self):

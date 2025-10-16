@@ -1,8 +1,8 @@
-from models.scraper import ScraperOutput, ScraperInput
-from services.yaml_loader import YamlLoaderListings
-from services.data_saver import save_data
-from scrapers.scrapy_scraper import ScrapyScraper
-from scrapers.playwright_scraper import PlaywrightScraper
+from app.models.scraper import ScraperOutput, ScraperInput
+from app.services.yaml_loader import YamlLoaderListings
+from app.services.data_saver import save_data
+from app.scrapers.scrapy_scraper import ScrapyScraper
+from app.scrapers.playwright_scraper import PlaywrightScraper
 import argparse
 import logging
 import os
@@ -129,11 +129,15 @@ class Scraper:
                 # Scrape details from urls
                 results = self.scrape_details(scraper_input['details_input'], urls, details_filename)
 
-if __name__ == "__main__":
+def main():
+    """Main entry point for the scrape command."""
     parser = argparse.ArgumentParser(description="Run a scraper by name")
     parser.add_argument("scraper_name", type=str, help="Name of the scraper to run")
-    
+
     args = parser.parse_args()
-    
+
     scraper = Scraper()
     scraper.scrape_from_yaml(args.scraper_name)
+
+if __name__ == "__main__":
+    main()

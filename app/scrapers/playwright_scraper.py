@@ -1,10 +1,10 @@
 import asyncio
 from playwright.async_api import async_playwright, Page
 from typing import Any, Iterator
-from scrapers.base import BaseScraper
-from models.scraper import ScraperInput, ScraperOutput, SimpleInfo, DynamicInfo
-from services.data_saver import save_data_incremental
-from utils.shadow_dom_utils import (
+from app.scrapers.base import BaseScraper
+from app.models.scraper import ScraperInput, ScraperOutput, SimpleInfo, DynamicInfo
+from app.services.data_saver import save_data_incremental
+from app.utils.shadow_dom_utils import (
     wait_shadow_aware,
     extract_shadow_aware,
     _query_all_shadow_chain_handles,

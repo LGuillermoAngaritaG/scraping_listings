@@ -1,5 +1,5 @@
 import pandas as pd
-from models.scraper import ScraperOutput, ScraperInput
+from app.models.scraper import ScraperOutput, ScraperInput
 from datetime import datetime, timezone
 import os
 

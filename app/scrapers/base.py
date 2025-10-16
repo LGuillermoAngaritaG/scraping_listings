@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import Any, Iterator
-from models.scraper import ScraperInput, ScraperOutput, SimpleInfo, DynamicInfo
+from app.models.scraper import ScraperInput, ScraperOutput, SimpleInfo, DynamicInfo
 
 class BaseScraper(ABC):
     """Base class for web scrapers using different engines."""

@@ -3,8 +3,8 @@ from scrapy.crawler import CrawlerRunner
 from crochet import setup, wait_for
 from typing import Any, Iterator
 from urllib.parse import urljoin
-from scrapers.base import BaseScraper, ScraperInput, ScraperOutput
-from services.data_saver import save_data_incremental
+from app.scrapers.base import BaseScraper, ScraperInput, ScraperOutput
+from app.services.data_saver import save_data_incremental
 
 # Install asyncio reactor before crochet setup to match Scrapy's requirements
 import asyncio

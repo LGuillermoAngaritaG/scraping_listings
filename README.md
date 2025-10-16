@@ -287,7 +287,7 @@ results = scraper.scrape_urls(config)
 
 ### Output Files
 
-Scraped data is saved to the `data/` directory:
+Scraped data is saved to the `data/` directory and automatically committed to the repository:
 
 ```
 data/
@@ -302,11 +302,25 @@ data/
 - `information`: JSON-serialized extracted data
 - `date_time`: UTC timestamp of extraction
 
+**Note**: When GitHub Actions runs the scrapers, CSV files are automatically committed and pushed to the repository for easy access.
+
 ---
 
 ## GitHub Actions Automation
 
 Two workflows are included for automated scraping:
+
+### Analyze Data in Colab
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/yourusername/scraping_listings/blob/main/analyze_artifacts.ipynb)
+
+Use the Jupyter notebook above to analyze all scraped data from the repository. The notebook includes:
+- Automatic repository cloning (in Colab) or local data access (in Jupyter)
+- Data loading and merging with pandas
+- Visualizations and statistics
+- Export merged datasets
+
+**Note**: Replace `yourusername` in the URL with your actual GitHub username.
 
 ### 1. Fincaraiz Scraper (`scrape-fincaraiz.yml`)
 - **Schedule**: Every 6 hours (0:00, 6:00, 12:00, 18:00 UTC)
@@ -328,15 +342,15 @@ Two workflows are included for automated scraping:
    - Click **Run workflow**
 
 3. **Access Data**:
-   - Go to completed workflow run
-   - Download artifacts from **Artifacts** section
-   - Data retained for 30 days
+   - **From Repository**: Scraped data is automatically committed to the `data/` directory
+   - **From Artifacts**: Go to completed workflow run and download from **Artifacts** section (30-day retention)
+   - **Analysis**: Use the Jupyter notebook to load and analyze all scraped data
 
 ### Workflow Features
 
 - Automatic dependency installation (uv, Python, Playwright)
 - Data uploaded as artifacts (always, even on failure)
-- No git commits (artifacts only)
+- Scraped data committed and pushed to repository automatically
 - Error resilience with `if: always()`
 
 ---
@@ -365,10 +379,11 @@ scraping_listings/
 │   └── utils/
 │       ├── __init__.py
 │       └── shadow_dom_utils.py  # Shadow DOM utilities
-├── data/                    # Output directory (git-ignored except .gitkeep)
-│   └── .gitkeep            # Ensures directory exists
+├── data/                    # Output directory for scraped CSV files
+│   └── .gitkeep            # Ensures directory exists in git
 ├── config.yaml              # Scraper configurations
 ├── pyproject.toml           # Project metadata and dependencies
+├── analyze_artifacts.ipynb  # Jupyter notebook for data analysis
 ├── CLAUDE.md                # AI assistant guide
 ├── README.md                # This file
 ├── LICENSE                  # MIT License with academic notice

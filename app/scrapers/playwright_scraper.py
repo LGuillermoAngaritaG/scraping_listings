@@ -22,7 +22,7 @@ class PlaywrightScraper(BaseScraper):
     It includes automatic scrolling to trigger lazy-loaded content.
     """
     
-    def __init__(self, scraper_input: ScraperInput, output_filename: str | None = None, headless: bool = False):
+    def __init__(self, scraper_input: ScraperInput, output_filename: str | None = None, headless: bool = True):
         """
         Initialize the Playwright scraper.
         

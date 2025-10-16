@@ -1,0 +1,2 @@
+# This file ensures the data/ directory is tracked in git
+# CSV files in this directory are gitignored but the directory structure is preserved

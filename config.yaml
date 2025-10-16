@@ -1,0 +1,82 @@
+scrapers:
+  - name: fincaraiz-bogota-leasing
+    scrapying_engine: scrapy
+    description: Scraping leasing properties from Fincaraiz in Envigado.
+    number_of_pages: 5
+    base_url: https://www.fincaraiz.com.co
+    pages_url: https://www.fincaraiz.com.co/arriendo/bogota/bogota-dc
+    next_xpath: //*[@id="__next"]//li[last()]/a/@href
+    urls_xpath: //a[@class="lc-data"]/@href
+    information:
+      - name: title
+        xpath: //*[@id="__next"]//h1/text()
+      - name: pricing
+        xpath: //div[@class="property-price-tag"]//p[@class="main-price"]/text()
+      - name: bedrooms
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][1]/span/text()
+      - name: bathrooms
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][2]/span/text()
+      - name: area
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][3]/span/text()
+      - name: location
+        xpath: //*[@id="__next"]//span[contains(@class,"property-location")]/p/text()[1]
+      - name: details
+        xpath_names: //*[@id="__next"]//div[contains(@class,"technical-sheet")]//span[@class="ant-typography"]/text()
+        xpath_values: //*[@id="__next"]//div[2]/div/div/div/div[3]//text()
+
+  - name: metrocuadrado-bogota-leasing
+    scrapying_engine: playwright
+    description: Scraping leasing properties from Metrocuadrado in Bogota.
+    number_of_pages: 2
+    base_url: https://www.metrocuadrado.com
+    pages_url: https://www.metrocuadrado.com/inmuebles/arriendo/bogota
+    next_xpath: //li[contains(@class,"pagination-next")]//button[@aria-label="next page"]
+    urls_xpath: //div[@class="property-card__content"]/a/@href
+    information:  
+      - name: title
+        xpath: //div[contains(@role,"status")]/h1/text()
+      - name: location
+        xpath: //div[contains(@class, "capitalize")]/text()
+      - name: price
+        xpath: (//div[@role="status"]//div[contains(@class, "font-bold") and contains(@class, "text-[24px]")])[1]/text()
+      - name: area
+        xpath: /html/body/div/div[2]/div[2]/div[2]/div[3]/div[1]/text()
+      - name: estrato
+        xpath: /html/body/div/div[2]/div[2]/div[2]/div[3]/div[2]/div[2]/text()
+      - name: main_specs
+        xpath: //pt-main-specs[@element-id="mainSpecs"]/div/pt-text/text()
+      - name: characteristics
+        xpath_names: //pt-accordion/div/pt-tag/text()
+        xpath_values: "true"
+      
+  - name: mercado-libre-bogota-leasing
+    scrapying_engine: playwright
+    description: Scraping leasing properties from Mercado Libre in Bogota.
+    number_of_pages: 1
+    base_url: https://www.mercadolibre.com.co
+    pages_url: https://listado.mercadolibre.com.co/arriendo-bogota
+    urls_xpath: //li[contains(@class, "ui-search-layout__item")]//a/@href
+    next_xpath: //span[text()="Siguiente"]
+    information:
+      - name: characteristics
+        xpath_names: //*[@id="highlighted_specs_attrs"]//div/p/span[1]
+        xpath_values: //*[@id="highlighted_specs_attrs"]//div/p/span[2]
+      - name: detailed_characteristics
+        xpath_names: //*[@id="highlighted_specs_attrs"]//tbody/tr/th/div/text()
+        xpath_values: //*[@id="highlighted_specs_attrs"]//tbody/tr/td/span/text()
+      - name: description
+        xpath: //*[@id="description"]/p/text()
+      - name: pricing
+        xpath: //*[@id="price"]//meta/@content
+      - name: title
+        xpath: //h1[@class="ui-pdp-title"]/text()   
+      - name: area
+        xpath: //*[@id="highlighted_specs_res"]/div/div[1]/span/text()
+      - name: bedrooms
+        xpath: //*[@id="highlighted_specs_res"]/div/div[2]/span/text()
+      - name: bathrooms
+        xpath: //*[@id="highlighted_specs_res"]/div/div[3]/span/text()
+
+
+
+

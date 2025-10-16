@@ -1,0 +1,54 @@
+name: Scrape Fincaraiz Bogota
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  schedule:
+    # Run every 6 hours (at 0:00, 6:00, 12:00, 18:00 UTC)
+    - cron: '0 */6 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e .
+
+      - name: Install Playwright browsers
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Run scraper
+        run: |
+          scrape fincaraiz-bogota-leasing
+        timeout-minutes: 30
+
+      - name: Upload scraped data
+        uses: actions/upload-artifact@v4
+        if: always()  # Upload even if scraper fails
+        with:
+          name: fincaraiz-data-${{ github.run_number }}
+          path: data/*fincaraiz*.csv
+          retention-days: 30

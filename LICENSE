@@ -1,0 +1,43 @@
+MIT License
+
+Copyright (c) 2024 Property Scraper Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+ADDITIONAL NOTICE FOR ACADEMIC USE:
+
+This software is designed for academic and educational purposes only. Users
+are responsible for:
+
+1. Ensuring compliance with applicable laws and regulations in their jurisdiction
+2. Respecting website Terms of Service and robots.txt directives
+3. Implementing appropriate rate limiting and respectful scraping practices
+4. Obtaining necessary permissions from website owners when required
+5. Protecting privacy and not collecting personal information without consent
+
+The maintainers and contributors of this project:
+- Do not endorse or encourage violation of any Terms of Service
+- Are not responsible for any misuse of this software
+- Provide no warranty or support for commercial or unauthorized use
+- Recommend consulting legal counsel before deploying this software
+
+By using this software, you agree to use it responsibly and ethically,
+primarily for academic research, education, and learning purposes.

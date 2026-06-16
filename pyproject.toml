@@ -29,6 +29,7 @@ dev = [
 
 [project.scripts]
 scrape = "app.main:main"
+filter_listings = "app.scripts.filter_and_notify:main"
 
 
 [build-system]

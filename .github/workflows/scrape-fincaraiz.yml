@@ -48,6 +48,17 @@ jobs:
           scrape fincaraiz-bogota-leasing
         timeout-minutes: 30
 
+      - name: Filter listings and notify
+        run: filter_listings
+        env:
+          FILTER_DATA_DIR: data
+          FILTER_OUTPUT_DIR: analysis
+          FILTER_OUTPUT_FILENAME: filtered_listings.csv
+          FILTER_EMAIL_SENDER: ${{ secrets.FILTER_EMAIL_SENDER }}
+          FILTER_EMAIL_PASSWORD: ${{ secrets.FILTER_EMAIL_PASSWORD }}
+          FILTER_EMAIL_RECIPIENTS: ${{ secrets.FILTER_EMAIL_RECIPIENTS }}
+          FILTER_EMAIL_ENABLED: ${{ secrets.FILTER_EMAIL_ENABLED }}
+
       - name: Upload scraped data
         uses: actions/upload-artifact@v4
         if: always()  # Upload even if scraper fails
@@ -62,7 +73,7 @@ jobs:
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
           git pull --rebase origin ${{ github.ref_name }} || true
-          git add data/*.csv || true
+          git add data/*.csv analysis/*.csv || true
           if ! git diff --staged --quiet; then
             git commit -m "🤖 Auto-scrape: Fincaraiz data - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
             git push origin ${{ github.ref_name }} || echo "Failed to push, but data is saved in artifacts"

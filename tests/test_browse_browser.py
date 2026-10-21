@@ -299,3 +299,163 @@ def test_notes_follow_their_home_through_choices_download_and_recipient_edit(tmp
     download.value.save_as(edited)
     assert payload(edited)[1]["notes"] == {rows[0]["url"]: first + "\nRespuesta: sí"}
     assert offline(edited).get_by_label("Notes on Home 0").input_value() == first + "\nRespuesta: sí"
+
+
+def save_search(page, path):
+    with page.expect_download() as download:
+        page.click("#save-search")
+    download.value.save_as(path)
+    return path
+
+
+def fields(page):
+    return page.evaluate("Object.fromEntries(FIELD_IDS.map(n => [n, document.getElementById(n).value]))")
+
+
+def test_saved_search_reopens_question_choices_and_notes_then_shortlists_only_choices(tmp_path, offline):
+    from app.services.browse import attach_history
+    from app.services.history import read_history
+    from tests.test_history import BASE, info, snapshot
+    d = tmp_path / "data"
+    snapshot(d, "20250101_100000", [(BASE + u, info(p), f"2025-01-01 10:0{i}:00+00:00")
+                                    for i, (u, p) in enumerate((("a", "$ 1.000.000"), ("b", "$ 2.000.000"), ("other", "$ 1.400.000")))])
+    export = write_export(tmp_path / "listings.csv", [
+        {"url": BASE + u, "title": t, "price": p, "bedrooms": b, "location": loc}
+        for u, t, p, b, loc in (("a", "Home A", "1000000", "1", "Usaquén"), ("b", "Home B", "2000000", "2", "Usaquén"),
+                                ("c", "Home C", "1500000", "1", "Usaquén"), ("other", "Other", "1400000", "1", "Chapinero"))])
+    data = attach_history(catalogue_data(load_listings(export)), read_history(d))
+    path = tmp_path / "listings.html"
+    path.write_text(render_page(data), encoding="utf-8")
+    page = offline(path)
+    assert "all 4 saved homes (not only the matches)" in page.inner_text("#save-note")
+    page.fill("#where", "USAQUÉN")
+    page.fill("#max_price", "2.500.000")
+    page.fill("#bedrooms", "1")
+    for title in ("Home A", "Home B", "Home C"):
+        page.locator("#results > li", has=page.get_by_role("heading", name=title)).get_by_label("Choose to compare").check()
+    note_a = "Cerca del trabajo.\n¿Incluye administración?"
+    page.get_by_label("Notes on Home A").fill(note_a)
+    page.get_by_label("Notes on Home B").fill("Second\n" + HOSTILE)
+    page.get_by_label("Notes on Home C").fill("DROPPED-DRAFT")
+    page.get_by_role("button", name="Remove Home C").click()
+    page.click("#more-filters summary")
+    page.fill("#min_price", "$ 1.000.001")  # filters the chosen Home A out of the results
+    assert card_titles(page) == ["Home C", "Home B"]
+    asked = fields(page)
+    saved = save_search(page, tmp_path / "search.html")
+    assert "open the new file to continue" in page.inner_text("#save-done")
+    text, saved_data = payload(saved)
+    assert {k: saved_data[k] for k in ("rows", "history", "meta")} == {k: data[k] for k in ("rows", "history", "meta")}
+    assert saved_data["search"]["fields"] == asked and saved_data["search"]["chosen"] == [BASE + "a", BASE + "b"]
+    assert saved_data["notes"] == {BASE + "a": note_a, BASE + "b": "Second\n" + HOSTILE}
+    assert "DROPPED-DRAFT" not in text and "</script><script>window" not in text
+
+    reopened = offline(saved)
+    assert fields(reopened) == asked and card_titles(reopened) == ["Home C", "Home B"]
+    assert reopened.inner_text("#heading") == "Saved search" and reopened.locator("#more-filters").get_attribute("open") is not None
+    note = reopened.inner_text("#saved-note")
+    assert "2 chosen homes" in note and "leaves this one unchanged" in note and "not a new sighting" in note
+    assert "reloading loses them" not in reopened.inner_text("#notes-hint") and reopened.inner_text("#restore-warning") == ""
+    assert reopened.get_by_label("Notes on Home A").input_value() == note_a  # chosen but filtered out, still editable
+    assert reopened.get_by_label("Notes on Home B").input_value() == "Second\n" + HOSTILE
+    assert reopened.evaluate("window.pwned ?? null") is None
+    reopened.get_by_label("Notes on Home A").fill("UNSAVED")
+    reopened.fill("#where", "chapinero")
+    reopened.reload()
+    reopened.wait_for_selector("html[data-ready=true]")
+    assert fields(reopened) == asked and reopened.get_by_label("Notes on Home A").input_value() == note_a
+
+    reopened.get_by_label("Notes on Home A").fill(note_a + "\nVisita el sábado")
+    reopened.fill("#min_price", "")
+    reopened.fill("#bedrooms", "")
+    assert card_titles(reopened) == ["Home A", "Home C", "Home B"]
+    refined = fields(reopened)
+    again = offline(save_search(reopened, tmp_path / "search-2.html"))
+    assert fields(again) == refined and card_titles(again) == ["Home A", "Home C", "Home B"]
+    assert again.get_by_label("Notes on Home A").input_value() == note_a + "\nVisita el sábado"
+    with again.expect_download() as download:
+        again.click("#download")
+    shortlist = tmp_path / "shortlist.html"
+    download.value.save_as(shortlist)
+    text, short = payload(shortlist)
+    assert "search" not in short and '"fields":' not in text and "USAQUÉN" not in text
+    assert [row["url"] for row in short["rows"]] == [BASE + "a", BASE + "b"] and sorted(short["history"]) == [BASE + "a", BASE + "b"]
+    assert BASE + "c" not in text and BASE + "other" not in text and "DROPPED-DRAFT" not in text
+    recipient = offline(shortlist)
+    assert recipient.inner_text("#heading") == "Shortlist: 2 homes" and recipient.locator("#save-search").is_hidden()
+    assert recipient.locator("#results > li .mynote p").first.text_content() == note_a + "\nVisita el sábado"
+
+
+def test_saved_search_edge_states_blocked_saves_and_older_files(tmp_path, offline):
+    rows = [{"url": "https://example.com/0", "title": "Chapinero A", "price": "3000000", "bedrooms": "0", "bathrooms": "1", "area_m2": "45.5",
+             "source": "fincaraiz-bogota-leasing"},
+            {"url": "https://example.com/1", "title": "Chapinero B", "price": "2999999", "bedrooms": "2", "area_m2": "45.4",
+             "source": "metrocuadrado-bogota-leasing", "last_seen": "2026-07-10T00:00:00+00:00"},
+            {"url": "https://example.com/2", "title": "Chapinero C", "price": "1500000", "bedrooms": "", "bathrooms": "", "area_m2": "",
+             "source": "metrocuadrado-bogota-leasing", "last_seen": "2026-01-01T00:00:00+00:00"}]
+    path, _ = build(tmp_path, rows)
+    cases = [({"where": "  chapinero ", "max_price": "3.000.000", "bedrooms": "0", "min_price": "0", "bathrooms": "1",
+               "min_area": "45.5", "source": "fincaraiz-bogota-leasing", "recent": ""}, ["Chapinero A"]),
+             ({"bedrooms": "", "recent": ""}, ["Chapinero C", "Chapinero B", "Chapinero A"]),
+             ({"bedrooms": "0", "recent": ""}, ["Chapinero B", "Chapinero A"]),
+             ({"max_price": "$ 2,999,999", "min_area": "45.4", "source": "metrocuadrado-bogota-leasing", "recent": "10"}, ["Chapinero B"]),
+             ({"where": "nada"}, [])]
+    for i, (values, titles) in enumerate(cases):
+        page = offline(path)
+        page.click("#more-filters summary")
+        for name, value in values.items():
+            page.select_option("#source", value) if name == "source" else page.fill(f"#{name}", value)
+        assert card_titles(page) == titles
+        asked = fields(page)
+        reopened = offline(save_search(page, tmp_path / f"case-{i}.html"))
+        assert fields(reopened) == asked and card_titles(reopened) == titles
+        assert reopened.evaluate("chosen.size") == 0 and "0 chosen homes" in reopened.inner_text("#saved-note")
+    reopened.get_by_role("button", name="Remove the place or words").click()  # zero-result save widens as before
+    assert card_titles(reopened) == ["Chapinero B", "Chapinero A"]
+
+    page = offline(path)
+    page.get_by_label("Choose to compare").first.check()
+    downloads = []
+    page.on("download", lambda d: downloads.append(d))
+    page.fill("#bedrooms", "dos")
+    page.click("#save-search")
+    page.get_by_label("Notes on Chapinero B").fill("x" * 1001)
+    page.fill("#bedrooms", "")
+    page.click("#save-search")
+    page.wait_for_timeout(300)
+    assert downloads == [] and "longer than 1000 characters" in page.inner_text("#save-error")
+    page.get_by_label("Notes on Chapinero B").fill("ok")
+    reopened = offline(save_search(page, tmp_path / "fixed.html"))
+    assert reopened.get_by_label("Notes on Chapinero B").input_value() == "ok" and reopened.inner_text("#save-error") == ""
+
+    page, downloads = offline(path), []
+    page.fill("#bedrooms", "dos")
+    page.on("download", lambda d: downloads.append(d))
+    page.click("#save-search")
+    page.wait_for_timeout(300)
+    assert downloads == [] and "No file was saved" in page.inner_text("#save-error")
+
+    # Older and hand-edited payloads rendered through the current template.
+    _, data = payload(path)
+    legacy = tmp_path / "legacy.html"
+    legacy.write_text(render_page(data), encoding="utf-8")
+    page = offline(legacy)
+    assert page.inner_text("#heading") == "Saved rental listings" and page.locator("#saved-note").is_hidden()
+    assert "reloading loses them" in page.evaluate("document.getElementById('notes-hint').textContent")
+    old_short = tmp_path / "old-shortlist.html"
+    old_short.write_text(render_page({"mode": "shortlist", "rows": data["rows"][:1], "notes": {rows[0]["url"]: "kept"},
+                                      "meta": {**data["meta"], "shortlist_saved_at": "2026-10-01 10:00 UTC"}}), encoding="utf-8")
+    page = offline(old_short)
+    assert page.inner_text("#heading") == "Shortlist: 1 home" and page.get_by_label("Notes on Chapinero A").input_value() == "kept"
+    odd = tmp_path / "odd.html"
+    odd.write_text(render_page({**data, "search": {"fields": {"where": "chapinero", "bedrooms": "dos", "max_price": 5,
+                                                              "source": "mercadolibre-bogota"},
+                                                   "chosen": ["https://example.com/gone"] + [r["url"] for r in data["rows"]],
+                                                   "saved_at": "not a date"}}), encoding="utf-8")
+    page = offline(odd)
+    warning = page.inner_text("#restore-warning")
+    assert "the source could not be used" in warning and "the highest price could not be used" in warning
+    assert "A saved choice is not among this file's homes" in warning and "Saved search from" not in warning
+    assert page.input_value("#bedrooms") == "dos" and "whole number" in page.inner_text("#bedrooms-error")
+    assert page.evaluate("chosen.size") == 3 and "an unknown date" in page.inner_text("#saved-note")
+    assert fields(page)["where"] == "chapinero"

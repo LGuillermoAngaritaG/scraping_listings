@@ -100,6 +100,8 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
   <h1 id="heading">Saved rental listings</h1>
   <p class="provenance" id="provenance"></p>
   <p class="provenance" id="history-note" hidden></p>
+  <p class="provenance" id="saved-note" hidden></p>
+  <p class="notice" id="restore-warning"></p>
   <p class="caveat" id="caveat">These are historical sightings from saved snapshots, not live availability. A home may be gone or its price may have changed; open its link to check.</p>
 </header>
 
@@ -154,7 +156,10 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
       </div>
     </div>
   </details>
-  <div class="actions"><button type="button" id="reset">Clear all filters</button></div>
+  <div class="actions"><button type="button" id="reset">Clear all filters</button><button type="button" id="save-search">Save this search</button></div>
+  <p class="small" id="save-note">Save this search downloads one file with all <span id="save-count"></span> saved homes (not only the matches), these filters, and your chosen homes with their notes. Open it later in any browser, offline, to keep refining. Anyone with the file can read its notes.</p>
+  <p class="notice" id="save-error" role="alert"></p>
+  <p class="small" id="save-done" role="status"></p>
 </form>
 
 <section aria-labelledby="results-heading">
@@ -169,11 +174,11 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 <section id="compare" aria-labelledby="compare-heading" tabindex="-1">
   <h2 id="compare-heading">Your choices</h2>
   <p class="notice" id="limit" role="alert"></p>
-  <p class="small" id="keep-note">Choices stay while this page is open; reloading clears them. Use Download shortlist to keep a copy or send it to someone. The file opens in any browser, offline.</p>
+  <p class="small" id="keep-note">Choices stay while this page is open; reloading clears them. Download shortlist saves only the chosen homes, to keep or send; Save this search saves the whole search. Both files open in any browser, offline.</p>
   <div id="compare-body"></div>
   <div id="notes" class="notes" hidden>
     <h3>Your notes (optional)</h3>
-    <p class="small" id="notes-hint">Your own reasons and questions, kept apart from the listing facts. Like your choices, they stay only while this page is open; reloading loses them. Download shortlist saves them in the file, and anyone you send that file to can read them.</p>
+    <p class="small" id="notes-hint">Your own reasons and questions, kept apart from the listing facts. Like your choices, they stay only while this page is open; reloading loses them. Download shortlist and Save this search write them into the file, and anyone you send that file to can read them.</p>
     <div id="notes-body"></div>
   </div>
   <div class="actions">
@@ -195,6 +200,8 @@ const PRISTINE = "<!doctype html>\n" + document.documentElement.outerHTML;
 const DATA = JSON.parse(document.getElementById("data").textContent);
 const META = DATA.meta, SHORTLIST = DATA.mode === "shortlist";
 const MAX_CHOICES = 4, PAGE = 24;
+const SAVED = !SHORTLIST && DATA.search && typeof DATA.search === "object" ? DATA.search : null;
+const FIELD_IDS = ["where", "max_price", "bedrooms", "min_price", "bathrooms", "min_area", "source", "recent"];
 const $ = id => document.getElementById(id);
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const human = iso => iso ? `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}` : "unknown";
@@ -483,24 +490,43 @@ function renderCompare() {
   $("notes-body").replaceChildren(...list.map(noteEditor));
 }
 
+function longNote(list, box, again) {
+  const long = list.find(row => (notes.get(row.url) || "").length > NOTE_MAX);
+  if (!long) return false;
+  box.textContent = `Your note on ${long.title || "a listing"} is longer than ${NOTE_MAX} characters. Shorten it, then ${again} again.`;
+  editors.get(long.url).querySelector("textarea").focus();
+  return true;
+}
+const keptNotes = list => Object.fromEntries(list.filter(row => (notes.get(row.url) || "").trim()).map(row => [row.url, notes.get(row.url)]));
 function download() {
   const list = [...chosen.values()];
-  const long = list.find(row => (notes.get(row.url) || "").length > NOTE_MAX);
-  if (long) {
-    $("limit").textContent = `Your note on ${long.title || "a listing"} is longer than ${NOTE_MAX} characters. Shorten it, then download again.`;
-    editors.get(long.url).querySelector("textarea").focus();
-    return;
-  }
+  if (longNote(list, $("limit"), "download")) return;
   $("limit").textContent = "";
-  const kept = Object.fromEntries(list.filter(row => (notes.get(row.url) || "").trim()).map(row => [row.url, notes.get(row.url)]));
+  const kept = keptNotes(list);
   const savedAt = new Date().toISOString();
   const history = HISTORY && Object.fromEntries(list.filter(row => HISTORY[row.url]).map(row => [row.url, HISTORY[row.url]]));
-  const payload = JSON.stringify({ mode: "shortlist", rows: list, ...(HISTORY ? { history } : {}), ...(Object.keys(kept).length ? { notes: kept } : {}), meta: { ...META, shortlist_saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" } })
-    .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+  saveFile({ mode: "shortlist", rows: list, ...(HISTORY ? { history } : {}), ...(Object.keys(kept).length ? { notes: kept } : {}), meta: { ...META, shortlist_saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" } },
+           `shortlist-${savedAt.slice(0, 10)}.html`);
+}
+function saveSearch() {
+  $("save-error").textContent = $("save-done").textContent = "";
+  if (!readFilters()) { $("save-error").textContent = "Fix the highlighted filter before saving this search. No file was saved."; return; }
+  const list = [...chosen.values()];
+  if (longNote(list, $("save-error"), "save the search")) return;
+  const kept = keptNotes(list);
+  const savedAt = new Date().toISOString();
+  const fields = Object.fromEntries(FIELD_IDS.map(name => [name, $(name).value]));
+  saveFile({ mode: "catalogue", rows, ...(HISTORY ? { history: HISTORY } : {}), ...(Object.keys(kept).length ? { notes: kept } : {}),
+             search: { fields, chosen: list.map(row => row.url), saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" }, meta: META },
+           `search-${savedAt.slice(0, 10)}.html`);
+  $("save-done").textContent = `Downloaded search-${savedAt.slice(0, 10)}.html with these filters and ${list.length} chosen ${list.length === 1 ? "home" : "homes"}. This page is not changed; open the new file to continue from it.`;
+}
+function saveFile(data, name) {
+  const payload = JSON.stringify(data).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
   const doc = new DOMParser().parseFromString(PRISTINE, "text/html");
   doc.getElementById("data").textContent = payload;
   const url = URL.createObjectURL(new Blob(["<!doctype html>\n" + doc.documentElement.outerHTML], { type: "text/html" }));
-  const a = el("a", { href: url, download: `shortlist-${savedAt.slice(0, 10)}.html` });
+  const a = el("a", { href: url, download: name });
   document.body.append(a);
   a.click();
   a.remove();
@@ -522,6 +548,24 @@ function reset() {
 
 const sources = [...new Set(rows.map(row => row.source))].sort();
 $("source").append(...sources.map(s => el("option", { value: s, text: s })));
+$("save-count").textContent = rows.length.toLocaleString("en-US");
+const restoreProblems = [];
+if (SAVED) {
+  const byUrl = new Map(rows.map(row => [row.url, row]));
+  // Restore the exact typed text; the normal parser then validates it like typing would.
+  for (const name of FIELD_IDS) {
+    const text = SAVED.fields?.[name];
+    if (text === undefined) continue;
+    if (typeof text === "string") $(name).value = text;
+    if ($(name).value !== text) restoreProblems.push(`The saved value for ${FILTER_NAMES[name]} could not be used here, so that filter shows ${$(name).value ? `"${$(name).value}"` : "no limit"} instead.`);
+  }
+  for (const url of Array.isArray(SAVED.chosen) ? SAVED.chosen : []) {
+    if (!byUrl.has(url)) restoreProblems.push("A saved choice is not among this file's homes and was skipped.");
+    else if (chosen.size >= MAX_CHOICES) restoreProblems.push(`Only the first ${MAX_CHOICES} saved choices were kept.`);
+    else chosen.set(url, byUrl.get(url));
+  }
+  if (["min_price", "bathrooms", "min_area", "source"].some(n => $(n).value) || $("recent").value !== "30") $("more-filters").open = true;
+}
 const made = `file made ${human(META.generated_at.slice(0, 10))}`;
 if (SHORTLIST) {
   document.title = "Shortlist of saved listings";
@@ -537,6 +581,16 @@ if (SHORTLIST) {
     ? `${META.properties.toLocaleString("en-US")} saved properties · newest observation ${human(META.data_date)} · ${made}`
     : `No saved listings in this file · ${made}`;
 }
+if (SAVED) {
+  $("heading").textContent = "Saved search";
+  document.title = "Saved search of saved listings";
+  $("saved-note").hidden = false;
+  const when = /^\d{4}-\d\d-\d\d \d\d:\d\d UTC$/.test(SAVED.saved_at) ? `${human(SAVED.saved_at.slice(0, 10))}, ${SAVED.saved_at.slice(11)}` : "an unknown date";
+  $("saved-note").textContent = `Search saved ${when}: the filters and ${chosen.size} chosen ${chosen.size === 1 ? "home" : "homes"} below come from this file. Saving is not a new sighting. Edits are not written into this file: Save this search downloads a new file and leaves this one unchanged, so open the new file to continue from it. Reloading this page brings back what this file saved.`;
+  $("restore-warning").textContent = [...new Set(restoreProblems)].join(" ");
+  $("keep-note").textContent = "Download shortlist makes a small file with only the chosen homes and their notes. Save this search keeps all homes, the filters and the choices.";
+  $("notes-hint").textContent = "Personal notes kept apart from the listing facts; notes on chosen homes come from this file. Edits stay only while this page is open; save a new file to keep them. Anyone with the file can read its notes.";
+}
 if (HMETA) {
   $("history-note").hidden = false;
   $("history-note").textContent = `Saved asking prices from ${HMETA.files.toLocaleString("en-US")} snapshot files, ${human(HMETA.first_observation?.slice(0, 10))} to ${human(HMETA.last_observation?.slice(0, 10))}. Homepage pages and unreadable prices were skipped. Open "Saved asking prices" on a home to see its dated prices and where each came from.`;
@@ -551,6 +605,7 @@ $("more").addEventListener("click", () => {
 });
 $("reset").addEventListener("click", reset);
 $("download").addEventListener("click", download);
+$("save-search").addEventListener("click", saveSearch);
 $("clear").addEventListener("click", () => { chosen.clear(); $("limit").textContent = ""; syncCards(); renderCompare(); });
 update();
 renderCompare();

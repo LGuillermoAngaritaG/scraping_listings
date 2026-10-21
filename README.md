@@ -22,7 +22,31 @@ A config-driven web scraper for extracting property listing data from Colombian 
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/LGuillermoAngaritaG/scraping_listings/blob/main/analyze_artifacts.ipynb)
 
-Use the Jupyter notebook to analyze scraped data with pandas, visualizations, and statistics.
+`analyze_artifacts.ipynb` summarises the saved listings: where the data comes from and how
+old it is, missing values, property types, apartment rents, rents by location and bedrooms,
+and when properties were last seen. Run all cells; nothing needs editing.
+
+- **Colab:** the badge opens the notebook from the published `main` branch. Its first cell
+  clones this repository (about 300 MB of saved data) into `/content/scraping_listings`, and
+  reuses that copy when you run it again.
+- **Locally:** from the repository root, in any Python 3.11+ environment:
+
+  ```bash
+  pip install pandas matplotlib notebook
+  jupyter notebook analyze_artifacts.ipynb
+  ```
+
+  The `.venv` from `uv sync --frozen` also has pandas and matplotlib if you select it as
+  the kernel in an editor.
+
+The notebook builds the same clean table as `scrape export` in a temporary folder; it does
+not change `data/` or need a browser or scraper setup. It counts properties, merging links
+that differ only by tracking codes, and says how many links that merged. Property types
+come from the first word of the title. Location comparisons use Metrocuadrado apartments
+only, because Fincaraiz locations have no city. The data is historical: it stops at the
+newest saved sighting and does not show current availability or price trends. If a step
+cannot run (wrong folder, missing or unreadable data), the notebook stops with a message
+saying what to do instead of continuing with empty results.
 
 ## Quickstart
 
@@ -96,7 +120,7 @@ data/
 Every completed run prints the number of listings saved, both CSV paths, and the filled
 count for each configured field, for example `pricing: 20/20 filled`. The CSV columns
 remain `url`, `information`, and `date_time`; `information` contains a Python dictionary
-representation of the extracted fields, as in the historical data and analysis notebook.
+representation of the extracted fields, as in the historical data.
 
 A run exits **1** if any configured field is empty in every listing (or no listings were
 saved). The summary names those fields and asks you to check their selectors. CSVs are
@@ -147,8 +171,8 @@ Missing values, ambiguous ranges, and values with the wrong units stay empty.
 For example, old Fincaraiz rows sometimes have an area in the bathrooms field;
 the export does not turn `253.39 m²` into a bathroom count. It also does not infer
 bedrooms from commercial `Ambiente` counts. Empty fields left by broken selectors
-remain visible in the fill-rate summary. The original CSVs and analysis notebook
-continue to use their existing format.
+remain visible in the fill-rate summary. The original CSVs keep their existing format;
+the analysis notebook reads this export.
 
 ### Search saved listings
 

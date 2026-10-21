@@ -1,0 +1,433 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data:; base-uri 'none'; form-action 'none'">
+<title>Saved listings</title>
+<style>
+:root {
+  --bg: #f6f4ef; --panel: #fff; --ink: #1d1b18; --muted: #5d5850; --line: #d9d3c7;
+  --accent: #1f5f8b; --accent-ink: #fff; --chosen: #e7f0f6; --warn: #8a3b12; --warn-bg: #fbeee6;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #171614; --panel: #22201d; --ink: #f1eee8; --muted: #b3ac9f; --line: #3d3a34;
+    --accent: #7cb7e0; --accent-ink: #10161b; --chosen: #1d2c37; --warn: #f2a57a; --warn-bg: #3a2418;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+main { max-width: 1100px; margin: 0 auto; padding: 16px 16px 96px; }
+h1 { font-size: 1.6rem; margin: 8px 0 4px; }
+h2 { font-size: 1.2rem; margin: 0 0 8px; }
+a { color: var(--accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.provenance { color: var(--muted); margin: 0 0 4px; }
+.caveat { background: var(--warn-bg); color: var(--ink); border-left: 4px solid var(--warn); padding: 8px 12px; border-radius: 4px; margin: 8px 0 16px; }
+form { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px 16px; }
+.field label { display: block; font-weight: 600; font-size: .95rem; }
+.field .hint { display: block; color: var(--muted); font-size: .85rem; }
+.field input, .field select { width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); margin-top: 2px; }
+.field input[aria-invalid="true"] { border-color: var(--warn); border-width: 2px; }
+.error { color: var(--warn); font-size: .9rem; font-weight: 600; margin: 2px 0 0; }
+.error:empty { display: none; }
+details { margin-top: 12px; }
+summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+details .fields { margin-top: 12px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid var(--accent); background: var(--panel); color: var(--accent); cursor: pointer; }
+button.primary { background: var(--accent); color: var(--accent-ink); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+.status { font-weight: 600; margin: 0 0 4px; }
+.notice { color: var(--warn); font-weight: 600; margin: 0 0 8px; }
+.notice:empty { margin: 0; }
+.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: var(--radius); padding: 16px; }
+.empty ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; }
+.cards { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; display: flex; flex-direction: column; gap: 4px; }
+.card.chosen { background: var(--chosen); border-color: var(--accent); }
+.card h3 { font-size: 1rem; margin: 0; overflow-wrap: anywhere; }
+.price { font-size: 1.25rem; font-weight: 700; }
+.facts, .where, .seen { margin: 0; overflow-wrap: anywhere; }
+.where, .seen { color: var(--muted); font-size: .95rem; }
+.unknown { color: var(--muted); font-style: italic; }
+.choose { display: flex; align-items: center; gap: 8px; margin-top: auto; padding-top: 6px; font-weight: 600; cursor: pointer; }
+.choose input { width: 1.2rem; height: 1.2rem; }
+.more { margin: 16px 0; }
+#compare { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 16px; margin-top: 24px; scroll-margin-top: 16px; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; vertical-align: top; padding: 6px 8px; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+thead th { min-width: 11rem; max-width: 18rem; }
+tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
+.clamp { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
+.bar[hidden] { display: none; }
+.small { font-size: .9rem; color: var(--muted); }
+@media (max-width: 600px) {
+  h1 { font-size: 1.35rem; }
+  #compare, form { padding: 12px; }
+  thead th { min-width: 8rem; }
+  th, td { padding: 6px 4px; }
+  tbody th { font-size: .85rem; overflow-wrap: normal; }
+}
+</style>
+</head>
+<body>
+<main>
+<header>
+  <h1 id="heading">Saved rental listings</h1>
+  <p class="provenance" id="provenance"></p>
+  <p class="caveat" id="caveat">These are historical sightings from saved snapshots, not live availability. A home may be gone or its price may have changed; open its link to check.</p>
+</header>
+
+<form id="filters" novalidate>
+  <h2>What are you looking for?</h2>
+  <div class="fields">
+    <div class="field">
+      <label for="where">Neighbourhood or words in the title</label>
+      <span class="hint" id="where-hint">For example chapinero or usaquen; accents and capitals are ignored</span>
+      <input id="where" name="where" autocomplete="off" aria-describedby="where-hint">
+    </div>
+    <div class="field">
+      <label for="max_price">Highest price (COP)</label>
+      <span class="hint" id="max_price-hint">For example 3000000</span>
+      <input id="max_price" name="max_price" inputmode="numeric" aria-describedby="max_price-hint max_price-error">
+      <p class="error" id="max_price-error"></p>
+    </div>
+    <div class="field">
+      <label for="bedrooms">At least this many bedrooms</label>
+      <span class="hint" id="bedrooms-hint">Homes with unknown bedrooms are left out</span>
+      <input id="bedrooms" name="bedrooms" inputmode="numeric" aria-describedby="bedrooms-hint bedrooms-error">
+      <p class="error" id="bedrooms-error"></p>
+    </div>
+  </div>
+  <details id="more-filters">
+    <summary>More filters: bathrooms, area, lowest price, source, how recent</summary>
+    <div class="fields">
+      <div class="field">
+        <label for="min_price">Lowest price (COP)</label>
+        <input id="min_price" name="min_price" inputmode="numeric" aria-describedby="min_price-error">
+        <p class="error" id="min_price-error"></p>
+      </div>
+      <div class="field">
+        <label for="bathrooms">At least this many bathrooms</label>
+        <input id="bathrooms" name="bathrooms" inputmode="numeric" aria-describedby="bathrooms-error">
+        <p class="error" id="bathrooms-error"></p>
+      </div>
+      <div class="field">
+        <label for="min_area">At least this area (m²)</label>
+        <input id="min_area" name="min_area" inputmode="decimal" aria-describedby="min_area-error">
+        <p class="error" id="min_area-error"></p>
+      </div>
+      <div class="field">
+        <label for="source">Source</label>
+        <select id="source" name="source"><option value="">All sources</option></select>
+      </div>
+      <div class="field">
+        <label for="recent">Seen within this many days of the newest data</label>
+        <span class="hint" id="recent-hint">0 = newest day only; leave empty for all saved history</span>
+        <input id="recent" name="recent" inputmode="numeric" value="30" aria-describedby="recent-hint recent-error">
+        <p class="error" id="recent-error"></p>
+      </div>
+    </div>
+  </details>
+  <div class="actions"><button type="button" id="reset">Clear all filters</button></div>
+</form>
+
+<section aria-labelledby="results-heading">
+  <h2 id="results-heading">Homes</h2>
+  <p class="status" id="status" role="status" aria-live="polite" tabindex="-1"></p>
+  <p class="small" id="recency-note"></p>
+  <div id="empty" class="empty" hidden></div>
+  <ul class="cards" id="results"></ul>
+  <button type="button" class="more" id="more" hidden></button>
+</section>
+
+<section id="compare" aria-labelledby="compare-heading" tabindex="-1">
+  <h2 id="compare-heading">Your choices</h2>
+  <p class="notice" id="limit" role="alert"></p>
+  <p class="small" id="keep-note">Choices stay while this page is open; reloading clears them. Use Download shortlist to keep a copy or send it to someone. The file opens in any browser, offline.</p>
+  <div id="compare-body"></div>
+  <div class="actions">
+    <button type="button" class="primary" id="download" disabled>Download shortlist</button>
+    <button type="button" id="clear" disabled>Remove all choices</button>
+  </div>
+</section>
+</main>
+
+<div class="bar" id="bar" hidden>
+  <span id="bar-count"></span>
+  <a href="#compare" id="bar-link">Compare and download</a>
+</div>
+
+<script type="application/json" id="data">__DATA__</script>
+<script>
+"use strict";
+const PRISTINE = "<!doctype html>\n" + document.documentElement.outerHTML;
+const DATA = JSON.parse(document.getElementById("data").textContent);
+const META = DATA.meta, SHORTLIST = DATA.mode === "shortlist";
+const MAX_CHOICES = 4, PAGE = 24;
+const $ = id => document.getElementById(id);
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const human = iso => iso ? `${+iso.slice(8, 10)} ${MONTHS[+iso.slice(5, 7) - 1]} ${iso.slice(0, 4)}` : "unknown";
+const dayNumber = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.slice(8, 10)) / 864e5;
+// Same as the Python search: casefold, then drop accents.
+const norm = s => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
+const rows = DATA.rows;
+const newest = META.data_date ? dayNumber(META.data_date) : null;
+const number = (row, key) => row[key] === null ? Infinity : row[key];
+const searchable = new Map(rows.map(row => [row, [norm(row.location), norm(row.title)]]));
+
+function filterRows(f) {
+  const needle = f.where ? norm(f.where) : "";
+  const bounds = [["price", f.min_price, f.max_price], ["bedrooms", f.bedrooms, null],
+                  ["bathrooms", f.bathrooms, null], ["area_m2", f.min_area, null]];
+  return rows.filter(row => {
+    if (f.recent !== null && newest - dayNumber(row.last_seen) > f.recent) return false;
+    if (f.source && row.source !== f.source) return false;
+    for (const [key, low, high] of bounds) {
+      if (low === null && high === null) continue;
+      const value = number(row, key);
+      if (!isFinite(value) || (low !== null && value < low) || (high !== null && value > high)) return false;
+    }
+    return !needle || searchable.get(row).some(text => text.includes(needle));
+  }).sort((a, b) => number(a, "price") - number(b, "price") || 0);
+}
+
+const NUMERIC = {
+  min_price: { label: "Lowest price", integer: false }, max_price: { label: "Highest price", integer: false },
+  bedrooms: { label: "Bedrooms", integer: true }, bathrooms: { label: "Bathrooms", integer: true },
+  min_area: { label: "Area", integer: false }, recent: { label: "Days", integer: true },
+};
+function parseNumber(text, integer) {
+  let t = text.trim().replace(/^\$\s*/, "").replace(/[\s,_]/g, "");
+  if (/^\d{1,3}(\.\d{3})+$/.test(t)) t = t.replace(/\./g, "");  // 3.000.000 as typed in Colombia
+  if (t === "") return { value: null };
+  if (integer ? !/^\d+$/.test(t) : !/^\d+(\.\d+)?$/.test(t))
+    return { error: integer ? "Use a whole number, 0 or more." : "Use digits only, 0 or more, for example 3000000." };
+  return { value: Number(t) };
+}
+function readFilters() {
+  const f = { where: $("where").value.trim() || null, source: $("source").value || null };
+  let valid = true;
+  for (const [name, spec] of Object.entries(NUMERIC)) {
+    const parsed = parseNumber($(name).value, spec.integer);
+    f[name] = parsed.value ?? null;
+    showError(name, parsed.error);
+    if (parsed.error) valid = false;
+  }
+  if (valid && f.min_price !== null && f.max_price !== null && f.min_price > f.max_price) {
+    showError("min_price", "Lowest price is above the highest price.");
+    $("more-filters").open = true;
+    valid = false;
+  }
+  if (!valid && ["min_price", "bathrooms", "min_area", "recent"].some(n => $(n + "-error").textContent)) $("more-filters").open = true;
+  return valid ? f : null;
+}
+function showError(name, message) {
+  $(name + "-error").textContent = message || "";
+  $(name).setAttribute("aria-invalid", message ? "true" : "false");
+}
+
+const chosen = new Map();
+let current = [], shown = PAGE;
+const el = (tag, attrs = {}, ...children) => {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs)) k === "text" ? node.textContent = v : node.setAttribute(k, v);
+  node.append(...children);
+  return node;
+};
+const safeUrl = url => { try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? u : null; } catch { return null; } };
+const cop = v => v === null ? null : "COP " + v.toLocaleString("en-US", { maximumFractionDigits: 0 });
+const count = (v, one, many) => v === null ? null : `${v.toLocaleString("en-US")} ${v === 1 ? one : many}`;
+const area = v => v === null ? null : `${v.toLocaleString("en-US", { maximumFractionDigits: 1 })} m²`;
+const fact = (text, missing) => text === null ? el("span", { class: "unknown", text: missing }) : el("span", { text });
+function link(row) {
+  const u = safeUrl(row.url);
+  return u ? el("a", { href: u.href, target: "_blank", rel: "noopener noreferrer", text: `View on ${u.hostname.replace(/^www\./, "")}` })
+           : el("span", { class: "unknown", text: "Link unavailable (not a web address)" });
+}
+
+function card(row, index) {
+  const id = "choose-" + index;
+  const box = el("input", { type: "checkbox", id });
+  box.checked = chosen.has(row.url);
+  box.addEventListener("change", () => toggle(row, box));
+  const facts = el("p", { class: "facts" }, fact(count(row.bedrooms, "bedroom", "bedrooms"), "bedrooms unknown"), " · ",
+                   fact(count(row.bathrooms, "bathroom", "bathrooms"), "bathrooms unknown"), " · ", fact(area(row.area_m2), "area unknown"));
+  return el("li", { class: "card" + (box.checked ? " chosen" : ""), "data-url": row.url },
+    el("h3", { text: row.title || "Untitled listing" }),
+    el("p", { class: "price" }, fact(cop(row.price), "Price unknown")),
+    facts,
+    el("p", { class: "where" }, fact(row.location || null, "Location unknown")),
+    el("p", { class: "seen", text: `Last seen ${human(row.last_seen)} · ${row.source}` }),
+    link(row),
+    el("label", { class: "choose", for: id }, box, SHORTLIST ? "Keep in shortlist" : "Choose to compare"));
+}
+
+function toggle(row, box) {
+  $("limit").textContent = "";
+  if (box.checked && chosen.size >= MAX_CHOICES) {
+    box.checked = false;
+    $("limit").textContent = `You can compare up to ${MAX_CHOICES} homes. Remove one below to choose another.`;
+    $("compare").scrollIntoView({ block: "nearest" });
+    return;
+  }
+  box.checked ? chosen.set(row.url, row) : chosen.delete(row.url);
+  syncCards();
+  renderCompare();
+}
+function syncCards() {
+  for (const li of $("results").children) {
+    const on = chosen.has(li.dataset.url);
+    li.classList.toggle("chosen", on);
+    li.querySelector("input").checked = on;
+  }
+}
+
+function renderResults() {
+  $("results").replaceChildren(...current.slice(0, shown).map(card));
+  const left = current.length - Math.min(shown, current.length);
+  $("more").hidden = left === 0;
+  $("more").textContent = `Show ${Math.min(PAGE, left)} more (${left.toLocaleString("en-US")} not shown yet)`;
+}
+
+function update() {
+  const f = readFilters();
+  $("empty").hidden = true;
+  if (!f) {
+    current = [];
+    $("results").replaceChildren();
+    $("more").hidden = true;
+    $("status").textContent = "Fix the highlighted filter to see homes.";
+    return;
+  }
+  current = filterRows(f);
+  shown = PAGE;
+  renderResults();
+  if (SHORTLIST) {
+    $("status").textContent = `${current.length} chosen ${current.length === 1 ? "home" : "homes"}, lowest price first`;
+  } else if (current.length) {
+    $("status").textContent = `${current.length.toLocaleString("en-US")} ${current.length === 1 ? "home matches" : "homes match"}, lowest price first`;
+  } else {
+    $("status").textContent = "No saved homes match these filters.";
+    showWiden(f);
+  }
+  $("recency-note").textContent = SHORTLIST || !rows.length ? "" : f.recent === null
+    ? "Showing all saved history."
+    : `Showing homes last seen from ${human(new Date((newest - f.recent) * 864e5).toISOString())} to ${human(META.data_date)} (within ${f.recent} days of the newest data, not of today).`;
+}
+
+const FILTER_NAMES = { where: "the place or words", max_price: "the highest price", bedrooms: "the bedroom minimum",
+  min_price: "the lowest price", bathrooms: "the bathroom minimum", min_area: "the area minimum", source: "the source", recent: "the date limit" };
+function showWiden(f) {
+  const box = $("empty");
+  const options = !rows.length ? [] : Object.keys(FILTER_NAMES).filter(name => f[name] !== null).map(name => {
+    const n = filterRows({ ...f, [name]: null }).length;
+    const button = el("button", { type: "button", text: `Remove ${FILTER_NAMES[name]} (${n.toLocaleString("en-US")} ${n === 1 ? "home" : "homes"})` });
+    button.addEventListener("click", () => { $(name).value = ""; update(); $("status").focus(); });
+    return el("li", {}, button);
+  });
+  box.replaceChildren(
+    el("p", { text: rows.length ? "Try removing one filter. Each button shows how many homes you would see:" : "This file has no saved listings. Run 'scrape export' and 'scrape browse' again after scraping." }),
+    el("ul", {}, ...options, ...(rows.length ? [el("li", {}, resetButton())] : [])));
+  box.hidden = false;
+}
+
+function renderCompare() {
+  const list = [...chosen.values()];
+  $("download").disabled = $("clear").disabled = list.length === 0;
+  $("bar").hidden = SHORTLIST || list.length === 0;
+  $("bar-count").textContent = `${list.length} of ${MAX_CHOICES} chosen`;
+  $("compare-heading").textContent = SHORTLIST ? "Comparison" : `Your choices (${list.length} of ${MAX_CHOICES})`;
+  if (!list.length) {
+    $("compare-body").replaceChildren(el("p", { class: "small", text: SHORTLIST ? "No homes kept in this shortlist." : "Tick Choose to compare on up to four homes to see them side by side here." }));
+    return;
+  }
+  const head = el("tr", {}, el("td"), ...list.map(row => {
+    const remove = el("button", { type: "button", text: "Remove" });
+    remove.setAttribute("aria-label", "Remove " + (row.title || "listing"));
+    remove.addEventListener("click", () => { chosen.delete(row.url); $("limit").textContent = ""; syncCards(); renderCompare(); });
+    return el("th", { scope: "col" }, el("div", { class: "clamp", text: row.title || "Untitled listing" }), remove);
+  }));
+  const line = (label, render) => el("tr", {}, el("th", { scope: "row", text: label }), ...list.map(row => el("td", {}, render(row))));
+  const body = el("tbody", {},
+    line("Price", r => fact(cop(r.price), "unknown")),
+    line("Bedrooms", r => fact(r.bedrooms === null ? null : String(r.bedrooms), "unknown")),
+    line("Bathrooms", r => fact(r.bathrooms === null ? null : String(r.bathrooms), "unknown")),
+    line("Area", r => fact(area(r.area_m2), "unknown")),
+    line("Location", r => fact(r.location || null, "unknown")),
+    line("Source", r => el("span", { text: r.source })),
+    line("Last seen", r => el("span", { text: human(r.last_seen) })),
+    line("Listing", link));
+  const wrap = el("div", { class: "table-wrap" }, el("table", {}, el("thead", {}, head), body));
+  const hint = el("p", { class: "small", text: `Swipe or scroll sideways to see all ${list.length} choices.` });
+  $("compare-body").replaceChildren(hint, wrap);
+  hint.hidden = wrap.scrollWidth <= wrap.clientWidth + 4;
+}
+
+function download() {
+  const list = [...chosen.values()];
+  const savedAt = new Date().toISOString();
+  const payload = JSON.stringify({ mode: "shortlist", rows: list, meta: { ...META, shortlist_saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" } })
+    .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
+  const doc = new DOMParser().parseFromString(PRISTINE, "text/html");
+  doc.getElementById("data").textContent = payload;
+  const url = URL.createObjectURL(new Blob(["<!doctype html>\n" + doc.documentElement.outerHTML], { type: "text/html" }));
+  const a = el("a", { href: url, download: `shortlist-${savedAt.slice(0, 10)}.html` });
+  document.body.append(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function resetButton() {
+  const n = filterRows({ where: null, min_price: null, max_price: null, bedrooms: null, bathrooms: null,
+                         min_area: null, source: null, recent: 30 }).length;
+  const button = el("button", { type: "button", text: `Clear all filters (${n.toLocaleString("en-US")} ${n === 1 ? "home" : "homes"})` });
+  button.addEventListener("click", () => { reset(); $("status").focus(); });
+  return button;
+}
+function reset() {
+  for (const name of ["where", ...Object.keys(NUMERIC), "source"]) $(name).value = "";
+  $("recent").value = "30";
+  update();
+}
+
+const sources = [...new Set(rows.map(row => row.source))].sort();
+$("source").append(...sources.map(s => el("option", { value: s, text: s })));
+const made = `file made ${human(META.generated_at.slice(0, 10))}`;
+if (SHORTLIST) {
+  document.title = "Shortlist of saved listings";
+  $("heading").textContent = `Shortlist: ${rows.length} ${rows.length === 1 ? "home" : "homes"}`;
+  $("provenance").textContent = `Chosen on ${human(META.shortlist_saved_at.slice(0, 10))} from ${META.properties.toLocaleString("en-US")} saved properties whose newest observation is ${human(META.data_date)} (${made}). Each home shows its own last sighting.`;
+  $("filters").hidden = true;
+  $("recent").value = "";
+  $("keep-note").textContent = "This file contains only these homes. Untick one to drop it, then Download shortlist again to save the smaller list.";
+  for (const row of rows) chosen.set(row.url, row);
+} else {
+  $("provenance").textContent = rows.length
+    ? `${META.properties.toLocaleString("en-US")} saved properties · newest observation ${human(META.data_date)} · ${made}`
+    : `No saved listings in this file · ${made}`;
+}
+$("filters").addEventListener("input", update);
+$("filters").addEventListener("submit", event => event.preventDefault());
+$("more").addEventListener("click", () => {
+  const first = shown;
+  shown += PAGE;
+  renderResults();
+  $("results").children[first]?.querySelector("input").focus();
+});
+$("reset").addEventListener("click", reset);
+$("download").addEventListener("click", download);
+$("clear").addEventListener("click", () => { chosen.clear(); $("limit").textContent = ""; syncCards(); renderCompare(); });
+update();
+renderCompare();
+document.documentElement.dataset.ready = "true";
+</script>
+</body>
+</html>

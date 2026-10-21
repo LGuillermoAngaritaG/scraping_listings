@@ -165,6 +165,10 @@ def main():
         from app.services.search import search_main
         return search_main(sys.argv[2:])
 
+    if sys.argv[1:2] == ["browse"]:
+        from app.services.browse import browse_main
+        return browse_main(sys.argv[2:])
+
     if sys.argv[1:2] == ["export"]:
         from app.services.export import export_listings, print_export_summary
 
@@ -178,7 +182,7 @@ def main():
             print(f"Error: {error}", file=sys.stderr)
             return 1
 
-    parser = argparse.ArgumentParser(description="Run a scraper by name", epilog="Saved listings: scrape export --help; scrape search --help")
+    parser = argparse.ArgumentParser(description="Run a scraper by name", epilog="Saved listings: scrape export --help; scrape search --help; scrape browse --help")
     parser.add_argument("scraper_name", nargs="?", help="Name of the scraper to run")
     parser.add_argument("--list", action="store_true", help="List configured scrapers and descriptions")
 

@@ -70,6 +70,7 @@ instance/
 
 # Generated tidy export; scheduled workflows commit only raw snapshots.
 /data/listings.csv
+/data/browse/
 
 # Sphinx documentation
 docs/_build/

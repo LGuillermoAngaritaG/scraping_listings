@@ -71,6 +71,7 @@ For a short first scrape, change `number_of_pages` to `1` in the
 scrape fincaraiz-bogota-leasing
 scrape export
 scrape search --max-price 3000000 --bedrooms 2 --where chapinero
+scrape browse   # then open data/browse/listings.html in a web browser
 ```
 
 The scrape summary tells you how many listings were saved, where the two raw CSVs are,
@@ -208,6 +209,38 @@ still uses that export. It never rebuilds automatically; exporting all historica
 can take several minutes. Search alone collapses repeated slashes in link paths and
 tracking-query variants of the same property, keeping the newest row before filtering
 and counting. Raw CSVs and the exported table retain their original URLs and rows.
+
+### Choose and share homes in a browser
+
+`scrape browse` turns the export into one HTML page you open directly in a web browser.
+It needs no Python, server, account or internet connection once written:
+
+```bash
+scrape export          # once, or after new scrapes
+scrape browse          # writes data/browse/listings.html
+```
+
+It prints the file path, the number of properties and the newest data date. Open the
+file, then type a neighbourhood or words from the title, a highest price in COP and a
+minimum number of bedrooms. **More filters** adds bathrooms, area, lowest price, source
+and how recent. The filters work like `scrape search`: inclusive bounds, missing numbers
+never match a numeric filter, accents and capitals are ignored, prices sort lowest first,
+and "how recent" counts days back from the newest saved observation, not from today
+(leave it empty for all history). Invalid numbers are explained next to the field, and an
+empty result offers buttons that remove one filter, each showing how many homes it would
+bring back.
+
+Tick **Choose to compare** on up to four homes to see price, rooms, area, location,
+source, last sighting and link side by side. Choices stay while the page is open,
+including when you change filters, but reloading clears them. **Download shortlist**
+saves a small HTML file with only the chosen homes and the data dates; send it to anyone,
+and it opens offline in any browser. Everything shown is a historical sighting from saved
+snapshots, not current availability, so open each link to check.
+
+Use `--input` for another export and `--output` for another `.html` path. The default
+output folder `data/browse/` is ignored by Git. A missing or invalid export, or a folder
+you cannot write to, gives a one-line fix and exits **1**. The page is replaced only once
+it is completely written.
 
 ## Configuration
 

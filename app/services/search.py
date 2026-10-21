@@ -1,8 +1,10 @@
 """Filter the tidy export without loading the scraping engines."""
 
 import math
+import re
 import unicodedata
-from datetime import date, timedelta
+from datetime import date, datetime, timezone
+from urllib.parse import urlsplit, urlunsplit
 
 
 def _normalized(text: str) -> str:
@@ -10,11 +12,27 @@ def _normalized(text: str) -> str:
                    if not unicodedata.combining(char))
 
 
+def _seen(row: dict[str, str]) -> datetime:
+    seen = datetime.fromisoformat(row["last_seen"])
+    return seen.replace(tzinfo=timezone.utc) if seen.tzinfo is None else seen.astimezone(timezone.utc)
+
+
+def prepare_listings(rows: list[dict[str, str]]) -> list[dict[str, str]]:
+    """Repair historical links and keep the newest row per property, only for search."""
+    selected = {}
+    for row in rows:
+        parts = urlsplit(row["url"])
+        url = urlunsplit((parts.scheme, parts.netloc, re.sub(r"/{2,}", "/", parts.path), "", ""))
+        if url not in selected or _seen(row) >= _seen(selected[url]):
+            selected[url] = {**row, "url": url}
+    return list(selected.values())
+
+
 def filter_listings(rows: list[dict[str, str]], *, min_price: float | None = None,
                     max_price: float | None = None, bedrooms: float | None = None,
                     bathrooms: float | None = None, min_area: float | None = None,
                     where: str | None = None, source: str | None = None,
-                    recent: int = 30) -> list[dict[str, str]]:
+                    recent: int | None = 30) -> list[dict[str, str]]:
     """Select export rows, using calendar days from the newest last_seen; sort by price.
 
     Numeric bounds are inclusive. Unknown numbers cannot satisfy a numeric filter,
@@ -23,7 +41,6 @@ def filter_listings(rows: list[dict[str, str]], *, min_price: float | None = Non
     if not rows:
         return []
     newest = max(date.fromisoformat(row["last_seen"][:10]) for row in rows)
-    cutoff = newest - timedelta(days=recent)
     needle = _normalized(where) if where else ""
 
     def number(row, field):
@@ -32,7 +49,7 @@ def filter_listings(rows: list[dict[str, str]], *, min_price: float | None = Non
 
     matches = []
     for row in rows:
-        if date.fromisoformat(row["last_seen"][:10]) < cutoff:
+        if recent is not None and (newest - date.fromisoformat(row["last_seen"][:10])).days > recent:
             continue
         if source and row["source"] != source:
             continue

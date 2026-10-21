@@ -1,11 +1,12 @@
 import pytest
 
-from app.services.search import filter_listings
+from app.services.search import filter_listings, prepare_listings
 
 
 def listing(**fields):
     return {"price": "2000000", "bedrooms": "2", "bathrooms": "1", "area_m2": "50",
             "location": "Usaquén, Bogotá", "title": "Apartamento", "source": "fincaraiz",
+            "url": "https://example.com/flat",
             "last_seen": "2026-07-19T00:00:00+00:00", **fields}
 
 
@@ -43,3 +44,22 @@ def test_price_sort_and_source_filter_do_not_change_input():
 def test_empty_input_and_no_matches_are_normal_results():
     assert filter_listings([]) == []
     assert filter_listings([listing()], max_price=1) == []
+
+
+def test_search_normalizes_links_and_keeps_newest_property_without_changing_export():
+    older = listing(url="https://example.com//flat?src_url=old", price="1000000",
+                    last_seen="2026-07-18T00:00:00+00:00")
+    newer = listing(url="https://example.com/flat?src_url=new", price="3000000")
+    rows = prepare_listings([newer, older])
+    assert rows == [{**newer, "url": "https://example.com/flat"}]
+    assert newer["url"].endswith("?src_url=new") and older["url"].endswith("?src_url=old")
+    # A stale cheap variant must not make a now-expensive property match.
+    assert filter_listings(rows, max_price=2000000) == []
+
+
+def test_search_does_not_collapse_different_properties_with_the_same_title():
+    rows = [listing(url="https://example.com//flat//1?src=a"),
+            listing(url="https://example.com/flat/2?src=a"),
+            listing(url="https://other.com/flat/1")]
+    assert [row["url"] for row in prepare_listings(rows)] == [
+        "https://example.com/flat/1", "https://example.com/flat/2", "https://other.com/flat/1"]

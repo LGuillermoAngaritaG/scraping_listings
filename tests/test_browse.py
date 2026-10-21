@@ -212,7 +212,7 @@ def test_from_data_rejects_input_before_reading(tmp_path, snapshots):
     assert (snapshots / "browse" / "listings.html").read_text() == "old page"
 
 
-@pytest.mark.parametrize("case", ["missing", "empty", "columns", "malformed", "unreadable", "unwritable"])
+@pytest.mark.parametrize("case", ["missing", "empty", "columns", "malformed", "encoding", "unreadable", "unwritable"])
 def test_from_data_failures_keep_previous_page(tmp_path, snapshots, case):
     folder, args = "data", []
     first = snapshots / "metrocuadrado-x_details_20250101_100000.csv"
@@ -220,6 +220,7 @@ def test_from_data_failures_keep_previous_page(tmp_path, snapshots, case):
                 "empty": "No saved snapshots (*_details_*.csv files) in empty/",
                 "columns": "expected url and information columns",
                 "malformed": "Invalid information in data/metrocuadrado-x_details_20250101_100000.csv, row 2",
+                "encoding": f"Cannot read data/{first.name}: it is not UTF-8 text. Restore the saved copy",
                 "unreadable": f"Cannot read data/{first.name}: Permission denied",
                 "unwritable": "Choose a writable location with --output"}[case]
     if case == "missing":
@@ -231,6 +232,8 @@ def test_from_data_failures_keep_previous_page(tmp_path, snapshots, case):
         first.write_text("a,b\n1,2\n")
     elif case == "malformed":
         first.write_text("url,information,date_time\nhttps://x,{broken,2025-01-01 10:00:00\n")
+    elif case == "encoding":
+        first.write_bytes(b"url,information,date_time\nhttps://x,\xff,2025-01-01 10:00:00\n")
     elif case == "unreadable":
         first.chmod(0o000)
     else:

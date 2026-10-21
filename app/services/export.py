@@ -124,15 +124,18 @@ def export_listings(output: str | Path = "data/listings.csv", data_dir: str | Pa
     dropped = rows_read = decoded = 0
     for path in files:
         source = path.name.rsplit("_details_", 1)[0]
-        with path.open(newline="", encoding="utf-8") as file:
-            reader = csv.DictReader(file)
-            if not {"url", "information"}.issubset(reader.fieldnames or []):
-                raise ValueError(f"Invalid details CSV {path}; expected url and information columns.")
-            try:
+        try:
+            with path.open(newline="", encoding="utf-8") as file:
+                reader = csv.DictReader(file)
+                if not {"url", "information"}.issubset(reader.fieldnames or []):
+                    raise ValueError(f"Invalid details CSV {path}; expected url and information columns.")
                 # A later row wins a timestamp tie within the same saved run.
                 rows = list(enumerate(reader, start=2))
-            except csv.Error as error:
-                raise ValueError(f"Cannot read {path}: {error}. Check the raw CSV format.") from error
+        except csv.Error as error:
+            raise ValueError(f"Cannot read {path}: {error}. Check the raw CSV format.") from error
+        except UnicodeDecodeError as error:
+            raise ValueError(f"Cannot read {path}: it is not UTF-8 text. Restore the saved "
+                             f"copy (git checkout -- {path}) or move the file out of {data_dir}/.") from error
         for line, row in reversed(rows):
             rows_read += 1
             url, raw = row.get("url"), row.get("information")

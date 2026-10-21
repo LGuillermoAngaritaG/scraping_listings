@@ -7,6 +7,7 @@ import os
 import sys
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING
+from urllib.parse import urljoin
 
 if TYPE_CHECKING:
     from app.models.scraper import ScraperOutput, ScraperInput
@@ -84,12 +85,11 @@ class Scraper:
                     if isinstance(url, dict) and isinstance(url.get('url'), str) and url['url'].strip():
                         urls.append(url['url'])
         
-        # if there is no base_url, add it
+        # Treat an explicit base as a directory, including for file:// fixtures.
         if urls:
             initial_url = scraper_input.urls[0]
-            base_url = scraper_input.base_url or "/".join(initial_url.split("/")[:2])
-            if "http" not in urls[0]:
-                urls = [base_url + "/" + url for url in urls]
+            base_url = scraper_input.base_url.rstrip("/") + "/" if scraper_input.base_url else initial_url
+            urls = [urljoin(base_url, url) for url in urls]
         
         return urls
 

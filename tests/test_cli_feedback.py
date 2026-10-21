@@ -127,6 +127,39 @@ def test_get_urls_ignores_empty_entries_and_values(tmp_path, monkeypatch):
     assert scraper._get_urls(pages, [output]) == ["https://example.com/d1.html"]
 
 
+@pytest.mark.parametrize("saved", [False, True])
+@pytest.mark.parametrize(("base_url", "page_url", "hrefs", "expected"), [
+    ("https://example.com", "https://example.com/search",
+     ["/listing/1", "listing/2", "https://other.example/listing/3"],
+     ["https://example.com/listing/1", "https://example.com/listing/2",
+      "https://other.example/listing/3"]),
+    ("https://example.com", "https://example.com/search",
+     ["https://other.example/listing/1", "/listing/2"],
+     ["https://other.example/listing/1", "https://example.com/listing/2"]),
+    (None, "https://example.com/search/index.html", ["../listing/1", "/listing/2"],
+     ["https://example.com/listing/1", "https://example.com/listing/2"]),
+    ("file:///tmp/site", "file:///tmp/site/search.html", ["d1.html"],
+     ["file:///tmp/site/d1.html"]),
+])
+def test_get_urls_resolves_each_href(tmp_path, monkeypatch, saved, base_url, page_url,
+                                    hrefs, expected):
+    from app.main import Scraper
+    from app.services.data_saver import save_data_incremental
+
+    monkeypatch.chdir(tmp_path)
+    write_config(tmp_path / "config.yaml")
+    scraper = Scraper()
+    pages = scraper.yaml_loader.load()[0]["pages_input"]
+    pages.base_url = base_url
+    pages.urls = [page_url]
+    output = ScraperOutput(url=page_url, information={"urls": [{"url": href} for href in hrefs]})
+    filename = str(tmp_path / "pages.csv")
+    if saved:
+        save_data_incremental(filename, output)
+
+    assert scraper._get_urls(pages, [] if saved else [output], filename) == expected
+
+
 @pytest.mark.parametrize("has_page_csv", [True, False])
 def test_no_listing_urls_stop_before_details(tmp_path, monkeypatch, has_page_csv):
     from app.main import Scraper

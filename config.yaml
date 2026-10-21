@@ -13,11 +13,11 @@ scrapers:
       - name: pricing
         xpath: //div[@class="property-price-tag"]//p[@class="main-price"]/text()
       - name: bedrooms
-        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][1]/span/text()
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"]/span[contains(., "Hab")]/text()
       - name: bathrooms
-        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][2]/span/text()
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"]/span[contains(., "Baño")]/text()
       - name: area
-        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][3]/span/text()
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"]/span[contains(., "m²")]/text()
       - name: location
         xpath: //*[@id="__next"]//span[contains(@class,"property-location")]/p/text()[1]
       - name: details
@@ -76,7 +76,6 @@ scrapers:
         xpath: //*[@id="highlighted_specs_res"]/div/div[2]/span/text()
       - name: bathrooms
         xpath: //*[@id="highlighted_specs_res"]/div/div[3]/span/text()
-
 
 
 

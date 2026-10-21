@@ -179,6 +179,7 @@ const dayNumber = iso => Date.UTC(+iso.slice(0, 4), +iso.slice(5, 7) - 1, +iso.s
 const norm = s => s.toLowerCase().normalize("NFD").replace(/\p{M}/gu, "");
 const rows = DATA.rows;
 const newest = META.data_date ? dayNumber(META.data_date) : null;
+const oldest = rows.length ? Math.min(...rows.map(row => dayNumber(row.last_seen))) : null;
 const number = (row, key) => row[key] === null ? Infinity : row[key];
 const searchable = new Map(rows.map(row => [row, [norm(row.location), norm(row.title)]]));
 
@@ -209,7 +210,10 @@ function parseNumber(text, integer) {
   if (t === "") return { value: null };
   if (integer ? !/^\d+$/.test(t) : !/^\d+(\.\d+)?$/.test(t))
     return { error: integer ? "Use a whole number, 0 or more." : "Use digits only, 0 or more, for example 3000000." };
-  return { value: Number(t) };
+  const value = Number(t);
+  if (!Number.isFinite(value) || (integer && !Number.isSafeInteger(value)))
+    return { error: "That number is too large. Use a smaller one, or leave the field empty for no limit." };
+  return { value };
 }
 function readFilters() {
   const f = { where: $("where").value.trim() || null, source: $("source").value || null };
@@ -317,7 +321,7 @@ function update() {
     $("status").textContent = "No saved homes match these filters.";
     showWiden(f);
   }
-  $("recency-note").textContent = SHORTLIST || !rows.length ? "" : f.recent === null
+  $("recency-note").textContent = SHORTLIST || !rows.length ? "" : f.recent === null || newest - f.recent <= oldest
     ? "Showing all saved history."
     : `Showing homes last seen from ${human(new Date((newest - f.recent) * 864e5).toISOString())} to ${human(META.data_date)} (within ${f.recent} days of the newest data, not of today).`;
 }

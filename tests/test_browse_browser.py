@@ -123,3 +123,24 @@ def test_choose_compare_download_and_reopen_selected_only(tmp_path, offline):
     assert card_titles(page) == [HOSTILE]
     assert page.evaluate("window.pwned ?? null") is None
     assert "Link unavailable" in page.inner_text("#results")
+
+
+def test_huge_numbers_get_feedback_and_huge_recency_means_all_history(tmp_path, offline):
+    path, listings = build(tmp_path, [{"url": "https://example.com/new", "title": "New"},
+                                      {"url": "https://example.com/old", "title": "Old",
+                                       "last_seen": "2020-01-01T00:00:00+00:00"}])
+    page = offline(path)
+    page.fill("#max_price", "9" * 400)
+    assert "too large" in page.inner_text("#max_price-error")
+    assert page.get_attribute("#max_price", "aria-invalid") == "true"
+    page.fill("#max_price", "")
+    page.click("#more-filters summary")
+    page.fill("#bedrooms", "9" * 20)  # beyond exact integers
+    assert "too large" in page.inner_text("#bedrooms-error")
+    page.fill("#bedrooms", "")
+    page.fill("#recent", "999999999")
+    assert page.inner_text("#recent-error") == ""
+    assert card_titles(page) == [r["title"] for r in filter_listings(listings, recent=999999999)] == ["New", "Old"]
+    assert page.inner_text("#recency-note") == "Showing all saved history."
+    page.fill("#recent", "1")
+    assert card_titles(page) == ["New"] and "within 1 days" in page.inner_text("#recency-note")

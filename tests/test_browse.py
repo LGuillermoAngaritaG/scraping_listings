@@ -119,6 +119,7 @@ def test_history_option_embeds_page_homes_only_and_reports_mismatches(tmp_path):
     out = result.stdout
     assert "this can take a minute" in out and "2 snapshot files, 2025-01-01 to 2025-02-01" in out
     assert "1 homes show a page price that differs" in out and "1 homes were last seen after" in out
+    assert "before the oldest snapshot" not in out
     page = embedded((data / "browse" / "listings.html").read_text(encoding="utf-8"))
     assert sorted(page["history"]) == [BASE + "a", BASE + "new"]  # the unrelated archive listing is not embedded
     assert page["history"][BASE + "a"]["notes"] == ["price_differs"]

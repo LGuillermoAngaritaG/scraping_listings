@@ -32,14 +32,17 @@ def catalogue_data(rows: list[dict[str, str]], now: datetime | None = None) -> d
 def attach_history(data: dict, history: dict) -> dict:
     """Add saved-price histories for catalogue rows only, with notes where they disagree."""
     meta = history["meta"]
-    archive_end = (meta["last_observation"] or "")[:10]
-    histories, counts = {}, {"with_history": 0, "price_differs": 0, "after_archive": 0}
+    archive_start, archive_end = ((meta[key] or "")[:10] for key in ("first_observation", "last_observation"))
+    histories, counts = {}, {"with_history": 0, "price_differs": 0, "after_archive": 0, "before_archive": 0}
     for row in data["rows"]:
         found = history["listings"].get(row["url"])
         notes = []
         if row["last_seen"] > archive_end:
             notes.append("after_archive")
             counts["after_archive"] += 1
+        elif row["last_seen"] < archive_start:
+            notes.append("before_archive")
+            counts["before_archive"] += 1
         if found:
             counts["with_history"] += 1
             latest = next((run for run in reversed(found["runs"]) if run["kind"] == "price"), None)
@@ -151,3 +154,6 @@ def print_history_summary(meta: dict, elapsed: float) -> None:
     if meta["after_archive"]:
         print(f"  {meta['after_archive']:,} homes were last seen after the newest snapshot in this folder; "
               "their history may be incomplete. Point --history-data at the folder the export was made from.")
+    if meta["before_archive"]:
+        print(f"  {meta['before_archive']:,} homes were last seen before the oldest snapshot in this folder; "
+              "their saved prices are from later than the export. Point --history-data at the folder the export was made from.")

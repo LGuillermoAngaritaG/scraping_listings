@@ -264,8 +264,9 @@ conservative:
 - Two different prices in the same scrape file, or at the same moment in two files, are
   shown as a conflict and never compared.
 - A home with one saved price says there is not enough history; a home not in the snapshots
-  says so. If the card price differs from the latest saved price, or the home was seen after
-  the newest snapshot, the section says so and the card is not changed.
+  says so. If the card price differs from the latest saved price, or the home was last seen
+  before the oldest or after the newest snapshot, the section says so and the card is not
+  changed.
 
 These are asking prices from saved snapshots, not prices paid, current availability or a
 market trend. **Download shortlist** keeps the history of the chosen homes only. A missing

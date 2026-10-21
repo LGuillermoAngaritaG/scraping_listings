@@ -295,6 +295,7 @@ function historyBlock(row) {
     el("span", { class: "ref", text: ref("First", r.first, r.first_ref) }),
     ...(r.saved_runs > 1 || r.first_ref !== r.last_ref ? [el("span", { class: "ref", text: ref("Last", r.last, r.last_ref) })] : [])));
   const notes = h.notes.map(n => {
+    if (n === "before_archive") return el("p", { class: "flag", text: `Last seen on ${human(row.last_seen)}, before the oldest history snapshot (${human(HMETA.first_observation?.slice(0, 10))}). The saved prices here are from later than this card's data, so they may not match it.` });
     if (n === "after_archive") return el("p", { class: "flag", text: `Last seen after the newest history snapshot (${human(HMETA.last_observation?.slice(0, 10))}), so newer saved prices may be missing.` });
     const latest = h.runs.filter(r => r.kind === "price").pop();
     return el("p", { class: "flag", text: `The price on this card comes from the export and differs from the latest saved price here, ${cop(latest.prices[0])} on ${human(latest.last.slice(0, 10))}. The card price is not changed.` });

@@ -203,6 +203,35 @@ def test_history_states_and_selected_only_shortlist(tmp_path, offline):
     assert "went up from COP 1,000,000" in reopened.locator("#results details.history").first.inner_text()
 
 
+def test_older_export_warns_before_archive_in_page_and_shortlist(tmp_path, offline):
+    from app.services.browse import attach_history
+    from app.services.history import read_history
+    from tests.test_history import BASE, info, snapshot
+    d = tmp_path / "data"
+    snapshot(d, "20250201_100000", [(BASE + "a", info("$ 2.000.000"), "2025-02-01 10:00:00+00:00")])
+    export = write_export(tmp_path / "listings.csv", [
+        {"url": BASE + "a", "title": "Older", "price": "2000000", "last_seen": "2025-01-01T00:00:00+00:00"}])
+    data = attach_history(catalogue_data(load_listings(export)), read_history(d))
+    assert data["history"][BASE + "a"]["notes"] == ["before_archive"]
+    assert data["rows"][0]["price"] == 2000000 and data["meta"]["history"]["before_archive"] == 1
+    path = tmp_path / "history.html"
+    path.write_text(render_page(data), encoding="utf-8")
+    warning = "Last seen on 1 Jan 2025, before the oldest history snapshot (1 Feb 2025)"
+    page = offline(path)
+    page.locator("#results details.history summary").click()
+    assert warning in page.inner_text("#results details.history")
+    page.get_by_label("Choose to compare").check()
+    page.locator("#compare details.history summary").click()
+    assert warning in page.inner_text("#compare details.history")
+    with page.expect_download() as download:
+        page.click("#download")
+    shortlist = tmp_path / "shortlist.html"
+    download.value.save_as(shortlist)
+    reopened = offline(shortlist)
+    reopened.locator("#results details.history summary").click()
+    assert warning in reopened.inner_text("#results details.history")
+
+
 def test_default_page_shows_no_history_controls(tmp_path, offline):
     path, _ = build(tmp_path, [{"url": "https://example.com/a", "title": "Home"}])
     page = offline(path)

@@ -84,3 +84,30 @@ def test_summary_reads_large_information_cells(tmp_path, capsys):
         csv.field_size_limit(previous_limit)
 
     assert "description: 1/1" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(("values", "warn", "status"), [
+    (["Same title", "Same title"], True, 0),
+    ([[{"beds": "2"}], [{"beds": "2"}]], True, 0),
+    ([0, 0], True, 0),
+    ([False, False], True, 0),
+    (["Same title"], False, 0),
+    (["Repeated", "Repeated", "Different"], False, 0),
+    (["Present", None], False, 0),
+    ([None, None], False, 1),
+    ([[], []], False, 1),
+])
+def test_summary_warns_only_for_a_nonempty_value_in_every_listing(tmp_path, capsys,
+                                                                values, warn, status):
+    details = tmp_path / "details.csv"
+    for value in values:
+        save_data_incremental(str(details), ScraperOutput(
+            url="https://example.com", information={"field": value}
+        ))
+
+    assert print_run_summary("local", "pages.csv", str(details), ["field"]) == status
+
+    output = capsys.readouterr().out
+    assert ("same value in every listing" in output) is warn
+    if warn:
+        assert "field:" in output and "WARNING" in output and "check" in output.lower()

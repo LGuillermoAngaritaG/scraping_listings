@@ -53,6 +53,8 @@ def print_run_summary(name: str, pages_filename: str, details_filename: str,
     """Report coverage from the saved CSV; return a failing status for empty fields."""
     csv.field_size_limit(sys.maxsize)
     filled = dict.fromkeys(field_names, 0)
+    first_values = {}
+    same_values = dict.fromkeys(field_names, True)
     total = 0
     # Both engines save incrementally and return no rows, so inspect the saved data.
     if os.path.exists(details_filename):
@@ -61,7 +63,12 @@ def print_run_summary(name: str, pages_filename: str, details_filename: str,
                 information = ast.literal_eval(row["information"])
                 total += 1
                 for field in filled:
-                    if _has_value(information.get(field)):
+                    value = information.get(field)
+                    if total == 1:
+                        first_values[field] = value
+                    elif value != first_values[field]:
+                        same_values[field] = False
+                    if _has_value(value):
                         filled[field] += 1
 
     print(f"Run summary for {name}: {total} listings saved")
@@ -69,6 +76,8 @@ def print_run_summary(name: str, pages_filename: str, details_filename: str,
     print(f"Details CSV: {details_filename}")
     for field, count in filled.items():
         warning = " (WARNING: empty in every listing; check this field's selector)" if count == 0 else ""
+        if total >= 2 and count == total and same_values[field]:
+            warning = " (WARNING: same value in every listing; check the listing pages and this field's selector)"
         print(f"  {field}: {count}/{total} filled{warning}")
     if total == 0:
         print("WARNING: no listings saved; check the listing URLs and selectors.")

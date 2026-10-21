@@ -1,6 +1,6 @@
 from app.models.scraper import ScraperOutput, ScraperInput
 from app.services.yaml_loader import YamlLoaderListings
-from app.services.data_saver import save_data
+from app.services.data_saver import print_run_summary
 from app.scrapers.scrapy_scraper import ScrapyScraper
 from app.scrapers.playwright_scraper import PlaywrightScraper
 import argparse
@@ -128,6 +128,10 @@ class Scraper:
                 
                 # Scrape details from urls
                 results = self.scrape_details(scraper_input['details_input'], urls, details_filename)
+                return print_run_summary(
+                    scraper_name, pages_filename, details_filename,
+                    [info.name for info in scraper_input['details_input'].information],
+                )
 
 def main():
     """Main entry point for the scrape command."""
@@ -137,7 +141,7 @@ def main():
     args = parser.parse_args()
 
     scraper = Scraper()
-    scraper.scrape_from_yaml(args.scraper_name)
+    return scraper.scrape_from_yaml(args.scraper_name)
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

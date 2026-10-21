@@ -97,6 +97,48 @@ are reported but do not by themselves fail the run. Healthy runs exit **0**. Sch
 workflows still upload artifacts and commit saved data when a scrape fails, while marking
 the scrape step as failed.
 
+### Export a table for a spreadsheet or pandas
+
+From the repository root, combine the saved detail snapshots into one CSV:
+
+```bash
+scrape export                         # writes data/listings.csv
+scrape export --output /tmp/listings.csv
+```
+
+This works offline and needs no `config.yaml` or browser. It reads
+`data/*_details_*.csv`, leaves the raw files intact, and reports listings written,
+counts per source, filled counts and percentages for every column, homepage rows
+dropped, elapsed time, and the output path. An invalid input or unwritable output
+gives a plain error and exits **1**; a completed export exits **0**. An existing
+export is replaced only after the new CSV has been written successfully. A raw
+pages or details CSV cannot be used as the output path.
+
+| Columns | Meaning |
+| --- | --- |
+| `source`, `url` | Scraper name and the exact saved listing URL |
+| `title`, `location` | Text from the latest valid snapshot |
+| `price` | Numeric price in Colombian pesos |
+| `bedrooms`, `bathrooms` | Whole-number counts, including Metrocuadrado's `main_specs` |
+| `area_m2` | Numeric area in square metres |
+| `estrato` | Residential stratum from 1 to 6; commercial stratum stays empty |
+| `first_seen`, `last_seen` | Earliest and latest saved sightings of that URL, in UTC |
+
+Each exact URL gets one row with the latest valid snapshot's values; missing fields
+stay empty rather than being filled from older snapshots. Known Fincaraiz homepage
+responses are counted and excluded. If a URL's newest response is a homepage, the
+export uses its most recent valid snapshot instead. The sighting dates include
+homepage responses, so `last_seen` records observation, not guaranteed availability.
+Dates come from `date_time`, falling back to the filename timestamp when needed.
+The export is a historical table, not a list of currently available properties.
+
+Missing values, ambiguous ranges, and values with the wrong units stay empty.
+For example, old Fincaraiz rows sometimes have an area in the bathrooms field;
+the export does not turn `253.39 m²` into a bathroom count. It also does not infer
+bedrooms from commercial `Ambiente` counts. Empty fields left by broken selectors
+remain visible in the fill-rate summary. The original CSVs and analysis notebook
+continue to use their existing format.
+
 ## Configuration
 
 Scrapers are defined in `config.yaml`. Basic structure:

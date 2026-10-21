@@ -159,7 +159,20 @@ class Scraper:
 
 def main():
     """Main entry point for the scrape command."""
-    parser = argparse.ArgumentParser(description="Run a scraper by name")
+    if sys.argv[1:2] == ["export"]:
+        from app.services.export import export_listings, print_export_summary
+
+        parser = argparse.ArgumentParser(prog="scrape export", description="Export saved listings as one tidy CSV")
+        parser.add_argument("--output", default="data/listings.csv", help="Output CSV path (default: data/listings.csv)")
+        args = parser.parse_args(sys.argv[2:])
+        try:
+            print_export_summary(export_listings(args.output))
+            return 0
+        except (ValueError, OSError) as error:
+            print(f"Error: {error}", file=sys.stderr)
+            return 1
+
+    parser = argparse.ArgumentParser(description="Run a scraper by name", epilog="Export saved listings: scrape export --help")
     parser.add_argument("scraper_name", nargs="?", help="Name of the scraper to run")
     parser.add_argument("--list", action="store_true", help="List configured scrapers and descriptions")
 

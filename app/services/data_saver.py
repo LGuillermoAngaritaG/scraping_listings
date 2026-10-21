@@ -1,9 +1,9 @@
-import pandas as pd
 from app.models.scraper import ScraperOutput, ScraperInput
 from datetime import datetime, timezone
 import os
 import ast
 import csv
+import sys
 
 
 def save_data(name: str, data: list[ScraperOutput]):
@@ -13,6 +13,7 @@ def save_data(name: str, data: list[ScraperOutput]):
     :param name: Name prefix for the output file
     :param data: List of ScraperOutput objects to save
     """
+    import pandas as pd
     df = pd.DataFrame([output.model_dump() for output in data])
     df.to_csv(f"data/{name}_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.csv", index=False)
 
@@ -25,6 +26,7 @@ def save_data_incremental(filename: str, data: ScraperOutput):
     :param filename: Full path to the output CSV file
     :param data: Single ScraperOutput object to save
     """
+    import pandas as pd
     file_exists = os.path.exists(filename)
     df = pd.DataFrame([data.model_dump()])
     
@@ -49,6 +51,7 @@ def _has_value(value):
 def print_run_summary(name: str, pages_filename: str, details_filename: str,
                       field_names: list[str]) -> int:
     """Report coverage from the saved CSV; return a failing status for empty fields."""
+    csv.field_size_limit(sys.maxsize)
     filled = dict.fromkeys(field_names, 0)
     total = 0
     # Both engines save incrementally and return no rows, so inspect the saved data.

@@ -62,10 +62,18 @@ scrape --help
 ### Basic Command
 
 ```bash
+# Discover configured names and descriptions (also shown by `scrape` with no args)
+scrape --list
+
 # Run a scraper by name (from config.yaml)
 scrape fincaraiz-bogota-leasing
 scrape metrocuadrado-bogota-leasing
 ```
+
+Run these commands from the directory containing `config.yaml`; the CLI reads that file
+from the current directory. A wrong name or invalid config explains what to fix before
+scraping starts. If a search returns no listing URLs, check `urls_xpath` and the search
+URL reported in the error.
 
 ### Output
 
@@ -76,6 +84,18 @@ data/
 ├── fincaraiz-bogota-leasing_pages_20241016_140530.csv
 └── fincaraiz-bogota-leasing_details_20241016_140612.csv
 ```
+
+Every completed run prints the number of listings saved, both CSV paths, and the filled
+count for each configured field, for example `pricing: 20/20 filled`. The CSV columns
+remain `url`, `information`, and `date_time`; `information` contains a Python dictionary
+representation of the extracted fields, as in the historical data and analysis notebook.
+
+A run exits **1** if any configured field is empty in every listing (or no listings were
+saved). The summary names those fields and asks you to check their selectors. CSVs are
+saved incrementally and remain available even when the run fails. Partially filled fields
+are reported but do not by themselves fail the run. Healthy runs exit **0**. Scheduled
+workflows still upload artifacts and commit saved data when a scrape fails, while marking
+the scrape step as failed.
 
 ## Configuration
 

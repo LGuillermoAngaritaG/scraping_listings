@@ -70,3 +70,17 @@ def test_summary_fails_if_no_details_were_saved(tmp_path, capsys):
 
     assert "0 listings saved" in capsys.readouterr().out
     assert not details.exists()
+
+
+def test_summary_reads_large_information_cells(tmp_path, capsys):
+    details = tmp_path / "details.csv"
+    save_data_incremental(str(details), ScraperOutput(
+        url="https://example.com", information={"description": "a" * 200_000}
+    ))
+    previous_limit = csv.field_size_limit(131_072)
+    try:
+        assert print_run_summary("local", "pages.csv", str(details), ["description"]) == 0
+    finally:
+        csv.field_size_limit(previous_limit)
+
+    assert "description: 1/1" in capsys.readouterr().out

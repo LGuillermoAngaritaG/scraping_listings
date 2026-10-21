@@ -281,6 +281,21 @@ a removed home's note is left out. Anyone who gets the file can read its notes: 
 on each home's card, labelled as a personal note, and can be edited in the same boxes. Edits
 in a shortlist are kept only when you **Download shortlist** again.
 
+**Save this search** (under the filters) keeps the whole question for later. It
+downloads one HTML file with every home in the page (all saved homes, not only the
+matches), the saved asking prices if the page has them, the exact text in each filter,
+and the chosen homes with their notes. It works with no home chosen. Open the file in
+any browser, offline: it shows the same filters, matches, choices and notes, including a
+chosen home that the filters now hide, and you can keep refining, choosing and writing
+notes. Edits are not written into the open file. Save this search again to download a new
+file (the open one stays as it was) and open that new file to continue from it; reloading
+a saved search brings back what that file saved. Invalid filters or a note over 1,000
+characters stop the save with a message. Anyone with the file can read its notes. The
+save date is when you saved the search, not a new sighting: the homes and prices are the
+same dated data. To send only the chosen homes, use **Download shortlist** from a saved
+search; that smaller file leaves out the other homes, the filters and notes on removed
+homes. A saved search does not update itself with newer scrapes.
+
 #### Optional: saved asking prices per home
 
 ```bash

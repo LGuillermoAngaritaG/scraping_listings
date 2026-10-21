@@ -74,6 +74,17 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .history .ref { display: block; color: var(--muted); font-size: .8rem; }
 .history p { margin: 6px 0; }
 .history .flag { color: var(--warn); font-weight: 600; }
+.notes { margin-top: 16px; }
+.notes h3 { font-size: 1.05rem; margin: 0 0 4px; }
+.note { margin-bottom: 12px; }
+.note label { display: block; font-weight: 600; overflow-wrap: anywhere; }
+.note textarea { display: block; width: 100%; font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--ink); margin-top: 2px; resize: vertical; }
+.note textarea[aria-invalid="true"] { border-color: var(--warn); border-width: 2px; }
+.note .count { margin: 2px 0 0; }
+.note .count.over { color: var(--warn); font-weight: 600; }
+.mynote { border-left: 4px solid var(--accent); padding: 4px 8px; margin: 4px 0; }
+.mynote strong { display: block; font-size: .9rem; }
+.mynote p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 @media (max-width: 600px) {
   h1 { font-size: 1.35rem; }
   #compare, form { padding: 12px; }
@@ -160,6 +171,11 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
   <p class="notice" id="limit" role="alert"></p>
   <p class="small" id="keep-note">Choices stay while this page is open; reloading clears them. Use Download shortlist to keep a copy or send it to someone. The file opens in any browser, offline.</p>
   <div id="compare-body"></div>
+  <div id="notes" class="notes" hidden>
+    <h3>Your notes (optional)</h3>
+    <p class="small" id="notes-hint">Your own reasons and questions, kept apart from the listing facts. Like your choices, they stay only while this page is open; reloading loses them. Download shortlist saves them in the file, and anyone you send that file to can read them.</p>
+    <div id="notes-body"></div>
+  </div>
   <div class="actions">
     <button type="button" class="primary" id="download" disabled>Download shortlist</button>
     <button type="button" id="clear" disabled>Remove all choices</button>
@@ -246,6 +262,36 @@ function showError(name, message) {
 }
 
 const chosen = new Map();
+// Personal notes per home URL: kept for the whole session (also after Remove), saved only for chosen homes.
+const NOTE_MAX = 1000;
+const notes = new Map(Object.entries(DATA.notes || {}).filter(([, text]) => typeof text === "string"));
+const editors = new Map();
+function noteEditor(row) {
+  if (editors.has(row.url)) return editors.get(row.url);  // reuse the node so text and caret survive rerenders
+  const id = "note-" + editors.size;
+  const area = el("textarea", { id, rows: "3", "aria-describedby": `${id}-count notes-hint` });
+  area.value = notes.get(row.url) || "";
+  const counter = el("p", { class: "small count", id: id + "-count" });
+  const show = () => {
+    const over = area.value.length > NOTE_MAX;
+    counter.textContent = over ? `${area.value.length} of ${NOTE_MAX} characters. Shorten it to download.` : `${area.value.length} of ${NOTE_MAX} characters`;
+    counter.classList.toggle("over", over);
+    area.setAttribute("aria-invalid", over ? "true" : "false");
+  };
+  area.addEventListener("input", () => { notes.set(row.url, area.value); show(); syncNotes(); });
+  show();
+  const box = el("div", { class: "note" }, el("label", { for: id, text: `Notes on ${row.title || "Untitled listing"}` }), area, counter);
+  editors.set(row.url, box);
+  return box;
+}
+function fillNote(box, url) {
+  const text = notes.get(url) || "";
+  box.hidden = !text.trim();
+  box.querySelector("p").textContent = text;
+}
+function syncNotes() {
+  for (const box of $("results").querySelectorAll(".mynote")) fillNote(box, box.closest("li").dataset.url);
+}
 let current = [], shown = PAGE;
 const el = (tag, attrs = {}, ...children) => {
   const node = document.createElement(tag);
@@ -322,7 +368,14 @@ function card(row, index) {
     el("p", { class: "seen", text: `Last seen ${human(row.last_seen)} · ${row.source}` }),
     link(row),
     ...(HISTORY ? [historyBlock(row)] : []),
+    ...(SHORTLIST ? [noteBlock(row)] : []),
     el("label", { class: "choose", for: id }, box, SHORTLIST ? "Keep in shortlist" : "Choose to compare"));
+}
+
+function noteBlock(row) {
+  const box = el("div", { class: "mynote" }, el("strong", { text: "Personal note (not from the listing)" }), el("p"));
+  fillNote(box, row.url);
+  return box;
 }
 
 function toggle(row, box) {
@@ -402,6 +455,7 @@ function renderCompare() {
   $("compare-heading").textContent = SHORTLIST ? "Comparison" : `Your choices (${list.length} of ${MAX_CHOICES})`;
   if (!list.length) {
     $("compare-body").replaceChildren(el("p", { class: "small", text: SHORTLIST ? "No homes kept in this shortlist." : "Tick Choose to compare on up to four homes to see them side by side here." }));
+    $("notes").hidden = true;
     return;
   }
   const head = el("tr", {}, el("td"), ...list.map(row => {
@@ -425,13 +479,23 @@ function renderCompare() {
   const hint = el("p", { class: "small", text: `Swipe or scroll sideways to see all ${list.length} choices.` });
   $("compare-body").replaceChildren(hint, wrap);
   hint.hidden = wrap.scrollWidth <= wrap.clientWidth + 4;
+  $("notes").hidden = false;
+  $("notes-body").replaceChildren(...list.map(noteEditor));
 }
 
 function download() {
   const list = [...chosen.values()];
+  const long = list.find(row => (notes.get(row.url) || "").length > NOTE_MAX);
+  if (long) {
+    $("limit").textContent = `Your note on ${long.title || "a listing"} is longer than ${NOTE_MAX} characters. Shorten it, then download again.`;
+    editors.get(long.url).querySelector("textarea").focus();
+    return;
+  }
+  $("limit").textContent = "";
+  const kept = Object.fromEntries(list.filter(row => (notes.get(row.url) || "").trim()).map(row => [row.url, notes.get(row.url)]));
   const savedAt = new Date().toISOString();
   const history = HISTORY && Object.fromEntries(list.filter(row => HISTORY[row.url]).map(row => [row.url, HISTORY[row.url]]));
-  const payload = JSON.stringify({ mode: "shortlist", rows: list, ...(HISTORY ? { history } : {}), meta: { ...META, shortlist_saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" } })
+  const payload = JSON.stringify({ mode: "shortlist", rows: list, ...(HISTORY ? { history } : {}), ...(Object.keys(kept).length ? { notes: kept } : {}), meta: { ...META, shortlist_saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" } })
     .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
   const doc = new DOMParser().parseFromString(PRISTINE, "text/html");
   doc.getElementById("data").textContent = payload;
@@ -466,6 +530,7 @@ if (SHORTLIST) {
   $("filters").hidden = true;
   $("recent").value = "";
   $("keep-note").textContent = "This file contains only these homes. Untick one to drop it, then Download shortlist again to save the smaller list.";
+  $("notes-hint").textContent = "Personal notes saved in this file by whoever made it, kept apart from the listing facts. You can edit them, but changes and removals are only kept when you Download shortlist again; reloading loses unsaved changes. Anyone who gets the file can read its notes.";
   for (const row of rows) chosen.set(row.url, row);
 } else {
   $("provenance").textContent = rows.length

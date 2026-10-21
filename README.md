@@ -273,6 +273,14 @@ saves a small HTML file with only the chosen homes and the data dates; send it t
 and it opens offline in any browser. Everything shown is a historical sighting from saved
 snapshots, not current availability, so open each link to check.
 
+Under the comparison, **Your notes** has one optional box per chosen home for your own
+reasons and questions (up to 1,000 characters each). Notes are plain text, kept apart from
+the listing facts, and nothing is saved automatically: like choices, they last only while
+the page is open. **Download shortlist** writes the notes of the chosen homes into the file;
+a removed home's note is left out. Anyone who gets the file can read its notes: they show
+on each home's card, labelled as a personal note, and can be edited in the same boxes. Edits
+in a shortlist are kept only when you **Download shortlist** again.
+
 #### Optional: saved asking prices per home
 
 ```bash

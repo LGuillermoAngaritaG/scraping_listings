@@ -236,3 +236,66 @@ def test_default_page_shows_no_history_controls(tmp_path, offline):
     path, _ = build(tmp_path, [{"url": "https://example.com/a", "title": "Home"}])
     page = offline(path)
     assert page.locator("details.history").count() == 0 and page.locator("#history-note").is_hidden()
+
+
+def payload(path):
+    import json
+    text = path.read_text(encoding="utf-8")
+    start = text.index('id="data">') + len('id="data">')
+    return text, json.loads(text[start:text.index("</script>", start)])
+
+
+def test_notes_follow_their_home_through_choices_download_and_recipient_edit(tmp_path, offline):
+    rows = [{"url": f"https://example.com/{i}", "price": str(2000000 + i), "title": f"Home {i}"} for i in range(3)]
+    path, _ = build(tmp_path, rows)
+    page = offline(path)
+    assert page.locator("#notes").is_hidden() and page.locator(".mynote").count() == 0
+    for i in range(3):
+        page.get_by_label("Choose to compare").nth(i).check()
+    assert "reloading loses them" in page.inner_text("#notes-hint")
+    first = "Cerca del trabajo.\n¿Incluye administración?"
+    page.get_by_label("Notes on Home 0").focus()
+    page.keyboard.type(first)
+    page.get_by_label("Notes on Home 1").fill("Second\n" + HOSTILE)
+    page.get_by_label("Notes on Home 2").fill("DROPPED-DRAFT")
+    page.get_by_label("Notes on Home 0").evaluate("e => e.setSelectionRange(4, 4)")
+    page.get_by_label("Notes on Home 0").focus()
+    page.fill("#where", "home")  # filtering rebuilds cards, not the editors
+    page.get_by_label("Notes on Home 0").focus()
+    assert page.evaluate("document.activeElement.selectionStart") == 4
+    page.get_by_role("button", name="Remove Home 2").click()
+    page.get_by_label("Choose to compare").nth(2).check()
+    assert page.get_by_label("Notes on Home 2").input_value() == "DROPPED-DRAFT"  # draft kept for the session
+    page.get_by_role("button", name="Remove Home 2").click()
+    with page.expect_download() as download:
+        page.click("#download")
+    shortlist = tmp_path / "shortlist.html"
+    download.value.save_as(shortlist)
+    text, data = payload(shortlist)
+    assert data["notes"] == {rows[0]["url"]: first, rows[1]["url"]: "Second\n" + HOSTILE}
+    assert "DROPPED-DRAFT" not in text and "</script><script>window" not in text
+
+    recipient = offline(shortlist)
+    assert "Download shortlist again" in recipient.inner_text("#notes-hint")
+    cards = recipient.locator("#results > li")
+    assert cards.nth(0).locator(".mynote p").text_content() == first
+    assert cards.nth(1).locator(".mynote p").text_content() == "Second\n" + HOSTILE
+    assert recipient.evaluate("window.pwned ?? null") is None
+    recipient.get_by_label("Notes on Home 1").fill("")  # empty notes are hidden and not saved
+    assert cards.nth(1).locator(".mynote").is_hidden()
+    recipient.get_by_label("Notes on Home 0").fill("x" * 1001)
+    assert "Shorten it to download" in recipient.inner_text("#notes-body")
+    downloads = []
+    recipient.on("download", lambda d: downloads.append(d))
+    recipient.click("#download")
+    recipient.wait_for_timeout(300)
+    assert downloads == [] and "longer than 1000 characters" in recipient.inner_text("#limit")
+    assert recipient.evaluate("document.activeElement.id") == "note-0"
+    recipient.get_by_label("Notes on Home 0").fill(first + "\nRespuesta: sí")
+    assert cards.nth(0).locator(".mynote p").text_content() == first + "\nRespuesta: sí"
+    with recipient.expect_download() as download:
+        recipient.click("#download")
+    edited = tmp_path / "edited.html"
+    download.value.save_as(edited)
+    assert payload(edited)[1]["notes"] == {rows[0]["url"]: first + "\nRespuesta: sí"}
+    assert offline(edited).get_by_label("Notes on Home 0").input_value() == first + "\nRespuesta: sí"

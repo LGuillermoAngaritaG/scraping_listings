@@ -24,38 +24,44 @@ A config-driven web scraper for extracting property listing data from Colombian 
 
 Use the Jupyter notebook to analyze scraped data with pandas, visualizations, and statistics.
 
-## Installation
+## Quickstart
 
-### 1. Clone and Setup
+Use Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Run from the repository
+directory so the CLI can find `config.yaml` and the saved `data/` snapshots.
 
 ```bash
-git clone https://github.com/yourusername/scraping_listings.git
+git clone https://github.com/Andesprit/scraping_listings.git
 cd scraping_listings
-```
-
-### 2. Install Dependencies
-
-```bash
-# Install uv (recommended)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create virtual environment
-uv venv
+uv sync --frozen --no-dev
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install project
-uv pip install -e .
-
-# Install Playwright browsers (if using Playwright scrapers)
+# Needed for Playwright scrapers such as Metrocuadrado; Fincaraiz uses Scrapy
 playwright install chromium
-playwright install-deps chromium
+scrape --list
 ```
 
-### 3. Verify Installation
+For a short first scrape, change `number_of_pages` to `1` in the
+`fincaraiz-bogota-leasing` entry in `config.yaml`, then run:
 
 ```bash
-scrape --help
+scrape fincaraiz-bogota-leasing
+scrape export --output data/listings.csv
 ```
+
+The scrape summary tells you how many listings were saved, where the two raw CSVs are,
+and which fields were filled. Open `data/listings.csv` in a spreadsheet for numeric
+prices, room counts and areas. The export includes the repository's historical snapshots;
+it also works offline, so you can run it before your first scrape. A field with no values
+makes the scrape exit **1**, but the saved data remains available for export.
+
+On Linux, if Chromium reports missing system libraries, run
+`playwright install-deps chromium`. If Chromium itself is missing, the scraper tells you
+to run `playwright install chromium` in the activated environment. To install development
+tools as well, use `uv sync --frozen --extra dev`.
+
+Mercado Libre is currently **unsupported**: its search redirects to account verification
+instead of listings. `scrape --list` shows that reason, and running its name stops with
+the same explanation before opening a browser. Use Fincaraiz or Metrocuadrado instead.
 
 ## Usage
 
@@ -142,6 +148,10 @@ continue to use their existing format.
 ## Configuration
 
 Scrapers are defined in `config.yaml`. Basic structure:
+
+An optional `unsupported: <reason>` marks a scraper as unavailable. The reason must be a
+non-empty string; discovery displays it and runs stop immediately. Remove the key only
+after verifying that the scraper works again.
 
 ```yaml
 scrapers:

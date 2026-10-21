@@ -131,6 +131,8 @@ class Scraper:
             )
         for scraper_input in scraper_inputs:
             if scraper_input['name'] == scraper_name:
+                if scraper_input.get('unsupported'):
+                    raise ValueError(f"Scraper '{scraper_name}' is unsupported: {scraper_input['unsupported']}")
                 # Generate timestamp for this scraping session
                 timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
                 pages_filename = f"data/{scraper_input['name']}_pages_{timestamp}.csv"
@@ -185,6 +187,8 @@ def main():
             print("Available scrapers (from config.yaml in the current directory):")
             for entry in entries:
                 description = entry['pages_input'].description or "No description provided"
+                if entry.get('unsupported'):
+                    description += f" [unsupported: {entry['unsupported']}]"
                 print(f"  {entry['name']}: {description}")
             return 0
         return scraper.scrape_from_yaml(args.scraper_name)

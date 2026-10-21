@@ -190,3 +190,42 @@ def test_no_listing_urls_stop_before_details(tmp_path, monkeypatch, has_page_csv
     assert "urls_xpath" in message and CONFIG["pages_url"] in message
     assert "check" in message.lower()
     assert not list(Path("data").glob("*_details_*.csv"))
+
+
+@pytest.mark.parametrize("value", [None, False, 1, [], "", " \n "])
+def test_loader_rejects_unsupported_without_a_reason(tmp_path, value):
+    config = copy.deepcopy(CONFIG)
+    config["unsupported"] = value
+    path = tmp_path / "config.yaml"
+    write_config(path, config)
+
+    with pytest.raises(ValueError, match="unsupported.*non-empty string"):
+        YamlLoaderListings().load(str(path))
+
+
+def test_unsupported_scraper_is_discoverable_and_stops_before_engine(tmp_path):
+    config = copy.deepcopy(CONFIG)
+    config["unsupported"] = "The site requires account verification. Use another listed scraper."
+    write_config(tmp_path / "config.yaml", config)
+    code = """
+import sys
+from app.main import main, Scraper
+def unexpected_engine(*args, **kwargs):
+    raise AssertionError('Unsupported scraper must not launch an engine')
+Scraper._select_engine = unexpected_engine
+sys.argv = ['scrape'] + sys.argv[1:]
+status = main()
+assert not any(name in sys.modules for name in ('pandas', 'scrapy', 'playwright'))
+raise SystemExit(status)
+"""
+    for args, expected in [(["--list"], 0), ([], 0), (["local-test"], 1)]:
+        result = subprocess.run([sys.executable, "-c", code, *args], cwd=tmp_path,
+                                capture_output=True, text=True)
+        assert result.returncode == expected
+        output = result.stdout + result.stderr
+        assert "local-test" in output and "unsupported" in output.lower()
+        assert config["unsupported"] in output
+        assert "Traceback" not in output
+        if expected == 1:
+            assert len(output.strip().splitlines()) == 1
+    assert not (tmp_path / "data").exists()

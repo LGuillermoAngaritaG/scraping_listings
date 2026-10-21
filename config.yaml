@@ -50,6 +50,8 @@ scrapers:
         xpath_values: "true"
       
   - name: mercado-libre-bogota-leasing
+    # Live probe: .atelier/goal/evidence/0004-probe/metro-mercado/navigation-00.json
+    unsupported: Mercado Libre requires account verification before showing listings. Use another scraper from 'scrape --list'.
     scrapying_engine: playwright
     description: Scraping leasing properties from Mercado Libre in Bogota.
     number_of_pages: 1
@@ -76,6 +78,5 @@ scrapers:
         xpath: //*[@id="highlighted_specs_res"]/div/div[2]/span/text()
       - name: bathrooms
         xpath: //*[@id="highlighted_specs_res"]/div/div[3]/span/text()
-
 
 

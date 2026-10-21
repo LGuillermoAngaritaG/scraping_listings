@@ -48,6 +48,9 @@ class YamlLoaderListings:
                     raise invalid(f"missing required key '{key}'; add it")
             if not isinstance(name, str) or not name.strip():
                 raise invalid("'name' must be a non-empty string")
+            unsupported = scraper.get('unsupported')
+            if 'unsupported' in scraper and (not isinstance(unsupported, str) or not unsupported.strip()):
+                raise invalid("'unsupported' must be a non-empty string explaining why this scraper cannot run")
             urls = [scraper['pages_url']] if isinstance(scraper['pages_url'], str) else scraper['pages_url']
             if not isinstance(urls, list) or not urls or any(not isinstance(url, str) or not url.strip() for url in urls):
                 raise invalid("'pages_url' must be a URL or a non-empty list of URLs")
@@ -87,5 +90,6 @@ class YamlLoaderListings:
             details_input = pages_input.model_copy(update={
                 'next_url_xpath': None, 'number_of_pages': 0, 'information': information,
             })
-            scraper_inputs.append({"name": scraper['name'], "pages_input": pages_input, "details_input": details_input})
+            scraper_inputs.append({"name": scraper['name'], "pages_input": pages_input, "details_input": details_input,
+                                   "unsupported": " ".join(unsupported.split()) if unsupported else None})
         return scraper_inputs

@@ -68,6 +68,9 @@ instance/
 # Scrapy stuff:
 .scrapy
 
+# Generated tidy export; scheduled workflows commit only raw snapshots.
+/data/listings.csv
+
 # Sphinx documentation
 docs/_build/
 

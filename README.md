@@ -45,12 +45,14 @@ For a short first scrape, change `number_of_pages` to `1` in the
 
 ```bash
 scrape fincaraiz-bogota-leasing
-scrape export --output data/listings.csv
+scrape export
+scrape search --max-price 3000000 --bedrooms 2 --where chapinero
 ```
 
 The scrape summary tells you how many listings were saved, where the two raw CSVs are,
-and which fields were filled. Open `data/listings.csv` in a spreadsheet for numeric
-prices, room counts and areas. The export includes the repository's historical snapshots;
+and which fields were filled. Search the exported listings directly, or open
+`data/listings.csv` in a spreadsheet for numeric prices, room counts and areas.
+The export includes the repository's historical snapshots;
 it also works offline, so you can run it before your first scrape. A field with no values
 makes the scrape exit **1**, but the saved data remains available for export.
 
@@ -112,6 +114,9 @@ scrape export                         # writes data/listings.csv
 scrape export --output /tmp/listings.csv
 ```
 
+The generated `data/listings.csv` is git-ignored; scheduled workflows continue to commit
+the raw snapshots only. Custom export paths are still supported.
+
 This works offline and needs no `config.yaml` or browser. It reads
 `data/*_details_*.csv`, leaves the raw files intact, and reports listings written,
 counts per source, filled counts and percentages for every column, homepage rows
@@ -144,6 +149,41 @@ the export does not turn `253.39 m²` into a bathroom count. It also does not in
 bedrooms from commercial `Ambiente` counts. Empty fields left by broken selectors
 remain visible in the fill-rate summary. The original CSVs and analysis notebook
 continue to use their existing format.
+
+### Search saved listings
+
+After `scrape export`, find matching properties without opening a spreadsheet:
+
+```bash
+scrape search --max-price 3000000 --bedrooms 2 --where chapinero
+scrape search --max-price 2500000 --bedrooms 1 --where usaquen
+scrape search --source fincaraiz-bogota-leasing --bathrooms 2 --min-area 60 --recent 365 --limit 5
+```
+
+Search prints **Data as of** the newest saved date, the total number of matches, and
+up to 20 results sorted by price in COP, with rooms, area, title, location and links.
+`--min-price`, `--max-price`, `--bedrooms`, `--bathrooms` and `--min-area` use inclusive
+bounds; room counts and area are minimums. A missing number cannot satisfy that filter
+and appears as `—` otherwise. `--where` matches a literal substring in location or title,
+ignoring accents and case: `usaquen` also finds `Usaquén` and `USAQUEN`. `--source` uses
+the exact scraper name. Use `scrape search --help` for all options.
+
+`--recent` defaults to 30 days **before the newest date in the export**, including both
+end dates; `--recent 0` searches only the newest day. This keeps historical snapshots
+searchable even months later. The date describes saved observations, not current
+availability. Location matches are text mentions, not geographic boundary checks.
+
+No matches is a successful search (exit **0**). Search shows how many listings would match
+if each active filter alone were removed, including the default recency filter, so you
+can decide what to widen. Multiple restrictions may need widening together.
+
+Search reads `data/listings.csv` by default; use `--input /tmp/listings.csv` for a custom
+export. A missing export gives a one-line instruction to run `scrape export` and exits
+**1**. If raw snapshots are newer than the export's modification time, search warns and
+still uses that export. It never rebuilds automatically; exporting all historical data
+can take several minutes. Search alone collapses repeated slashes in link paths and
+tracking-query variants of the same property, keeping the newest row before filtering
+and counting. Raw CSVs and the exported table retain their original URLs and rows.
 
 ## Configuration
 

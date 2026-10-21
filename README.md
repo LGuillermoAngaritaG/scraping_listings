@@ -266,6 +266,14 @@ and "how recent" counts days back from the newest saved observation, not from to
 empty result offers buttons that remove one filter, each showing how many homes it would
 bring back.
 
+When a price, bedroom, bathroom or area limit is set, the page also says how many homes
+meet every other filter but have no saved value for that fact (for example "2 homes meet
+your other filters but have no saved area"). They are never counted as matches. Its
+button removes that limit (both price limits together) and shows every home the other
+filters allow, including ones whose known value is outside your limit. Each fact is
+counted on its own and the counts are not added up; a home missing two of the facts you
+asked about is not in any count. A shortlist file does not show this.
+
 Tick **Choose to compare** on up to four homes to see price, rooms, area, location,
 source, last sighting and link side by side. Choices stay while the page is open,
 including when you change filters, but reloading clears them. **Download shortlist**

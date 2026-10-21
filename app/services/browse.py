@@ -29,6 +29,34 @@ def catalogue_data(rows: list[dict[str, str]], now: datetime | None = None) -> d
                      "generated_at": now.strftime("%Y-%m-%d %H:%M UTC")}}
 
 
+def attach_history(data: dict, history: dict) -> dict:
+    """Add saved-price histories for catalogue rows only, with notes where they disagree."""
+    meta = history["meta"]
+    archive_end = (meta["last_observation"] or "")[:10]
+    histories, counts = {}, {"with_history": 0, "price_differs": 0, "after_archive": 0}
+    for row in data["rows"]:
+        found = history["listings"].get(row["url"])
+        notes = []
+        if row["last_seen"] > archive_end:
+            notes.append("after_archive")
+            counts["after_archive"] += 1
+        if found:
+            counts["with_history"] += 1
+            latest = next((run for run in reversed(found["runs"]) if run["kind"] == "price"), None)
+            if latest and row["price"] is not None and latest["prices"][0] != row["price"]:
+                notes.append("price_differs")
+                counts["price_differs"] += 1
+            histories[row["url"]] = {**found, "notes": notes}
+        elif notes:
+            histories[row["url"]] = {"state": "absent", "runs": [], "changes": [], "notes": notes}
+    summary = {key: meta[key] for key in ("files", "rows", "homepage_rows", "unknown_price_rows", "priced_rows",
+                                          "first_observation", "last_observation", "conflict_runs",
+                                          "change_events", "changed_listings")}
+    return {**data, "history": histories,
+            "meta": {**data["meta"], "history": {**summary, **counts,
+                                                 "generated_at": data["meta"]["generated_at"]}}}
+
+
 def render_page(data: dict) -> str:
     payload = json.dumps(data, ensure_ascii=False, separators=(",", ":"))
     # Inside <script type="application/json">, escaped markup characters cannot end the element.
@@ -58,6 +86,10 @@ def browse_main(argv: list[str]) -> int:
     parser.add_argument("--input", default="data/listings.csv", help="Export CSV (default: data/listings.csv)")
     parser.add_argument("--output", default="data/browse/listings.html",
                         help="HTML file to write (default: data/browse/listings.html)")
+    parser.add_argument("--history-data", metavar="FOLDER",
+                        help="Also show each home's saved asking prices from the raw *_details_*.csv "
+                             "snapshots in FOLDER (usually data). Optional; reads every snapshot, "
+                             "which can take a minute or more")
     args = parser.parse_args(argv)
     path, output = Path(args.input), Path(args.output)
     if output.suffix.lower() not in (".html", ".htm"):
@@ -74,6 +106,19 @@ def browse_main(argv: list[str]) -> int:
     except (ValueError, OSError, csv.Error) as error:
         print(f"Error: Cannot read {path}: {error}. Run '{refresh}' to rebuild the export.", file=sys.stderr)
         return 1
+    if args.history_data:
+        from app.services.history import read_history
+        print(f"Reading saved asking prices from {args.history_data}/ (optional; this can take a minute or more)...",
+              flush=True)
+        try:
+            history = read_history(args.history_data, progress=lambda done, total: print(
+                f"  {done:,} of {total:,} snapshot files read", flush=True))
+        except ValueError as error:
+            print(f"Error: {error} No page was written; {output} is unchanged. "
+                  "Leave out --history-data to build the page without price history.", file=sys.stderr)
+            return 1
+        data = attach_history(data, history)
+        print_history_summary(data["meta"]["history"], history["meta"]["elapsed_seconds"])
     try:
         write_page(render_page(data), output)
     except OSError as error:
@@ -90,3 +135,19 @@ def browse_main(argv: list[str]) -> int:
     print("Open it in a web browser; it works offline. Choose homes there and use "
           "'Download shortlist' to save or send only those.")
     return 0
+
+
+def print_history_summary(meta: dict, elapsed: float) -> None:
+    first, last = (meta[key][:10] if meta[key] else "none" for key in ("first_observation", "last_observation"))
+    print(f"Saved asking prices: {meta['files']:,} snapshot files, {first} to {last}, read in {elapsed:.1f}s.")
+    print(f"  {meta['priced_rows']:,} priced rows used; skipped {meta['homepage_rows']:,} homepage rows and "
+          f"{meta['unknown_price_rows']:,} rows without a readable price (shown as gaps).")
+    print(f"  {meta['with_history']:,} of the homes on the page are in the archive; "
+          f"{meta['change_events']:,} observed price changes across {meta['changed_listings']:,} listings in the archive; "
+          f"{meta['conflict_runs']:,} conflicting saved runs are shown but not compared.")
+    if meta["price_differs"]:
+        print(f"  {meta['price_differs']:,} homes show a page price that differs from their latest saved price in the "
+              "archive; the page says so on those homes.")
+    if meta["after_archive"]:
+        print(f"  {meta['after_archive']:,} homes were last seen after the newest snapshot in this folder; "
+              "their history may be incomplete. Point --history-data at the folder the export was made from.")

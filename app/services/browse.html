@@ -67,6 +67,13 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .bar { position: fixed; left: 0; right: 0; bottom: 0; background: var(--panel); border-top: 1px solid var(--line); padding: 10px 16px; display: flex; gap: 12px; align-items: center; justify-content: center; flex-wrap: wrap; }
 .bar[hidden] { display: none; }
 .small { font-size: .9rem; color: var(--muted); }
+.history { margin-top: 4px; font-size: .95rem; }
+.history summary { font-size: .95rem; }
+.history ol { margin: 6px 0; padding-left: 1.2rem; }
+.history li { margin-bottom: 6px; overflow-wrap: anywhere; }
+.history .ref { display: block; color: var(--muted); font-size: .8rem; }
+.history p { margin: 6px 0; }
+.history .flag { color: var(--warn); font-weight: 600; }
 @media (max-width: 600px) {
   h1 { font-size: 1.35rem; }
   #compare, form { padding: 12px; }
@@ -81,6 +88,7 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 <header>
   <h1 id="heading">Saved rental listings</h1>
   <p class="provenance" id="provenance"></p>
+  <p class="provenance" id="history-note" hidden></p>
   <p class="caveat" id="caveat">These are historical sightings from saved snapshots, not live availability. A home may be gone or its price may have changed; open its link to check.</p>
 </header>
 
@@ -245,6 +253,7 @@ const el = (tag, attrs = {}, ...children) => {
   node.append(...children);
   return node;
 };
+const HISTORY = DATA.history || null, HMETA = META.history || null;
 const safeUrl = url => { try { const u = new URL(url); return /^https?:$/.test(u.protocol) ? u : null; } catch { return null; } };
 const cop = v => v === null ? null : "COP " + v.toLocaleString("en-US", { maximumFractionDigits: 0 });
 const count = (v, one, many) => v === null ? null : `${v.toLocaleString("en-US")} ${v === 1 ? one : many}`;
@@ -254,6 +263,47 @@ function link(row) {
   const u = safeUrl(row.url);
   return u ? el("a", { href: u.href, target: "_blank", rel: "noopener noreferrer", text: `View on ${u.hostname.replace(/^www\./, "")}` })
            : el("span", { class: "unknown", text: "Link unavailable (not a web address)" });
+}
+
+const utc = iso => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+const ref = (label, at, r) => `${label} ${utc(at)}, ${r.slice(0, r.lastIndexOf(":"))} row ${r.slice(r.lastIndexOf(":") + 1)}`;
+const span = (a, b) => human(a.slice(0, 10)) === human(b.slice(0, 10)) ? human(a.slice(0, 10)) : `${human(a.slice(0, 10))} to ${human(b.slice(0, 10))}`;
+const runs = n => `${n} saved ${n === 1 ? "run" : "runs"}`;
+function historyLines(h) {
+  const priced = h.runs.filter(r => r.kind === "price");
+  if (h.state === "absent" || h.state === undefined) return [HMETA.first_observation
+    ? `No saved asking prices for this home in the history snapshots (${human(HMETA.first_observation.slice(0, 10))} to ${human(HMETA.last_observation.slice(0, 10))}).`
+    : "The history snapshots contain no saved asking prices."];
+  if (h.state === "no_price") return ["No readable asking price was saved for this home, so there is nothing to compare."];
+  if (h.state === "single") return [`Only one saved asking price: ${cop(priced[0].prices[0])} on ${human(priced[0].first.slice(0, 10))}. That is not enough to see a change.`];
+  if (h.changes.length) return h.changes.map(c => c.across_gap
+    ? `${cop(c.from)} was saved on ${human(c.from_at.slice(0, 10))} and ${cop(c.to)} on ${human(c.to_at.slice(0, 10))}. The saved runs between had no readable price, so when it changed is not known.`
+    : `Saved asking price went ${c.to > c.from ? "up" : "down"} from ${cop(c.from)} (seen ${human(c.from_at.slice(0, 10))}) to ${cop(c.to)} (seen ${human(c.to_at.slice(0, 10))}).`);
+  if (new Set(priced.map(r => r.prices[0])).size > 1) return ["Different prices were saved, but conflicting saved runs sit between them, so no change is stated."];
+  return [`The same asking price, ${cop(priced[0].prices[0])}, was seen in ${runs(h.valid_runs)} from ${span(priced[0].first, priced[priced.length - 1].last)}. Prices between saved runs were not observed.`];
+}
+function historyBlock(row) {
+  const h = HISTORY[row.url] || { runs: [], changes: [], notes: [] };
+  const changes = h.changes.length;
+  const label = !h.runs.length ? "none saved" : h.state === "single" ? "one saved price"
+    : changes ? `${changes} ${changes === 1 ? "change" : "changes"} seen` : h.state === "no_price" ? "no readable price" : "no change seen";
+  const items = h.runs.map(r => el("li", {},
+    r.kind === "price" ? el("strong", { text: cop(r.prices[0]) })
+      : r.kind === "unknown" ? el("span", { class: "unknown", text: "No readable price" })
+      : el("span", { class: "flag", text: `Conflicting prices ${r.prices.map(cop).join(" or ")}, not compared` }),
+    ` · ${span(r.first, r.last)} · ${runs(r.saved_runs)}`,
+    el("span", { class: "ref", text: ref("First", r.first, r.first_ref) }),
+    ...(r.saved_runs > 1 || r.first_ref !== r.last_ref ? [el("span", { class: "ref", text: ref("Last", r.last, r.last_ref) })] : [])));
+  const notes = h.notes.map(n => {
+    if (n === "after_archive") return el("p", { class: "flag", text: `Last seen after the newest history snapshot (${human(HMETA.last_observation?.slice(0, 10))}), so newer saved prices may be missing.` });
+    const latest = h.runs.filter(r => r.kind === "price").pop();
+    return el("p", { class: "flag", text: `The price on this card comes from the export and differs from the latest saved price here, ${cop(latest.prices[0])} on ${human(latest.last.slice(0, 10))}. The card price is not changed.` });
+  });
+  return el("details", { class: "history" },
+    el("summary", { text: `Saved asking prices (${label})` }),
+    ...historyLines(h).map(text => el("p", { text })), ...notes,
+    ...(items.length ? [el("ol", {}, ...items)] : []),
+    el("p", { class: "small", text: "Asking prices the listing showed in each saved run (one scrape file), oldest first. They are not prices paid, not proof the home is still available, and not a market trend. A run of the same price means it was seen at those times, not that it stayed the same in between. Rows: line numbers in the raw CSV files." }));
 }
 
 function card(row, index) {
@@ -270,6 +320,7 @@ function card(row, index) {
     el("p", { class: "where" }, fact(row.location || null, "Location unknown")),
     el("p", { class: "seen", text: `Last seen ${human(row.last_seen)} · ${row.source}` }),
     link(row),
+    ...(HISTORY ? [historyBlock(row)] : []),
     el("label", { class: "choose", for: id }, box, SHORTLIST ? "Keep in shortlist" : "Choose to compare"));
 }
 
@@ -367,7 +418,8 @@ function renderCompare() {
     line("Location", r => fact(r.location || null, "unknown")),
     line("Source", r => el("span", { text: r.source })),
     line("Last seen", r => el("span", { text: human(r.last_seen) })),
-    line("Listing", link));
+    line("Listing", link),
+    ...(HISTORY ? [line("Saved asking prices", historyBlock)] : []));
   const wrap = el("div", { class: "table-wrap" }, el("table", {}, el("thead", {}, head), body));
   const hint = el("p", { class: "small", text: `Swipe or scroll sideways to see all ${list.length} choices.` });
   $("compare-body").replaceChildren(hint, wrap);
@@ -377,7 +429,8 @@ function renderCompare() {
 function download() {
   const list = [...chosen.values()];
   const savedAt = new Date().toISOString();
-  const payload = JSON.stringify({ mode: "shortlist", rows: list, meta: { ...META, shortlist_saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" } })
+  const history = HISTORY && Object.fromEntries(list.filter(row => HISTORY[row.url]).map(row => [row.url, HISTORY[row.url]]));
+  const payload = JSON.stringify({ mode: "shortlist", rows: list, ...(HISTORY ? { history } : {}), meta: { ...META, shortlist_saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" } })
     .replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026");
   const doc = new DOMParser().parseFromString(PRISTINE, "text/html");
   doc.getElementById("data").textContent = payload;
@@ -417,6 +470,10 @@ if (SHORTLIST) {
   $("provenance").textContent = rows.length
     ? `${META.properties.toLocaleString("en-US")} saved properties · newest observation ${human(META.data_date)} · ${made}`
     : `No saved listings in this file · ${made}`;
+}
+if (HMETA) {
+  $("history-note").hidden = false;
+  $("history-note").textContent = `Saved asking prices from ${HMETA.files.toLocaleString("en-US")} snapshot files, ${human(HMETA.first_observation?.slice(0, 10))} to ${human(HMETA.last_observation?.slice(0, 10))}. Homepage pages and unreadable prices were skipped. Open "Saved asking prices" on a home to see its dated prices and where each came from.`;
 }
 $("filters").addEventListener("input", update);
 $("filters").addEventListener("submit", event => event.preventDefault());

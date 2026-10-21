@@ -237,6 +237,41 @@ saves a small HTML file with only the chosen homes and the data dates; send it t
 and it opens offline in any browser. Everything shown is a historical sighting from saved
 snapshots, not current availability, so open each link to check.
 
+#### Optional: saved asking prices per home
+
+```bash
+scrape browse --history-data data
+```
+
+This also reads every raw `*_details_*.csv` snapshot in `data/` and adds a
+**Saved asking prices** section to each home and to the comparison. It is optional because
+it rereads all raw files: about 10-30 seconds for the committed archive (1,930 files) and
+a page of about 6.6 MB instead of 2.6 MB. It prints progress and a summary: date coverage,
+how many homepage rows and rows without a readable price were skipped, and how many price
+changes were observed. Without the option, `scrape browse` does not read raw files.
+
+Each home lists its asking prices oldest first, grouped into runs of the same price. A
+*saved run* is one scrape file; equal prices in a row mean that price was seen at those
+times, not that it stayed the same in between. Every run names the raw file and row of its
+first and last observation, so you can check any number yourself. A change is stated only
+between two neighbouring saved prices and names both prices and dates. The rules are
+conservative:
+
+- Links are matched the same way as search (query strings and repeated slashes removed);
+  titles are never used to join homes.
+- Known homepage responses are dropped. Prices that are missing, zero or in another unit are
+  shown as gaps. A comparison across a gap says the change happened at an unknown time.
+- Two different prices in the same scrape file, or at the same moment in two files, are
+  shown as a conflict and never compared.
+- A home with one saved price says there is not enough history; a home not in the snapshots
+  says so. If the card price differs from the latest saved price, or the home was seen after
+  the newest snapshot, the section says so and the card is not changed.
+
+These are asking prices from saved snapshots, not prices paid, current availability or a
+market trend. **Download shortlist** keeps the history of the chosen homes only. A missing
+folder or a snapshot that cannot be read stops with the file name and leaves the previous
+page as it was.
+
 Use `--input` for another export and `--output` for another `.html` path. The default
 output folder `data/browse/` is ignored by Git. A missing or invalid export, or a folder
 you cannot write to, gives a one-line fix and exits **1**. The page is replaced only once

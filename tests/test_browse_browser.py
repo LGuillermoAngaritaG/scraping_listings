@@ -144,3 +144,66 @@ def test_huge_numbers_get_feedback_and_huge_recency_means_all_history(tmp_path, 
     assert page.inner_text("#recency-note") == "Showing all saved history."
     page.fill("#recent", "1")
     assert card_titles(page) == ["New"] and "within 1 days" in page.inner_text("#recency-note")
+
+
+def test_history_states_and_selected_only_shortlist(tmp_path, offline):
+    from app.services.browse import attach_history
+    from app.services.history import read_history
+    from tests.test_history import BASE, info, snapshot
+    d = tmp_path / "data"
+    snapshot(d, "20250101_100000", [(BASE + "rise", info("$ 1.000.000"), "2025-01-01 10:00:00+00:00"),
+                                    (BASE + "gap", info("$ 2.000.000"), "2025-01-01 10:01:00+00:00"),
+                                    (BASE + "clash", info("$ 3.000.000"), "2025-01-01 10:02:00+00:00"),
+                                    (BASE + "clash?v=2", info("$ 3.500.000"), "2025-01-01 10:02:30+00:00"),
+                                    (BASE + "one", info("$ 4.000.000", title=HOSTILE), "2025-01-01 10:03:00+00:00")])
+    snapshot(d, "20250201_100000", [(BASE + "rise", info("$ 1.200.000"), "2025-02-01 10:00:00+00:00"),
+                                    (BASE + "gap", info("Precio a convenir"), "2025-02-01 10:01:00+00:00")])
+    snapshot(d, "20250301_100000", [(BASE + "gap", info("$ 1.800.000"), "2025-03-01 10:01:00+00:00")])
+    export = write_export(tmp_path / "listings.csv", [
+        {"url": BASE + u, "title": t, "price": p, "last_seen": "2025-03-01T00:00:00+00:00"}
+        for u, t, p in (("rise", "Rise", "1200000"), ("gap", "Gap", "1800000"), ("clash", "Clash", "3500000"),
+                        ("one", HOSTILE, "4000000"), ("absent", "Absent", "5000000"))])
+    page_path = tmp_path / "history.html"
+    page_path.write_text(render_page(attach_history(catalogue_data(load_listings(export)), read_history(d))),
+                         encoding="utf-8")
+    page = offline(page_path)
+    assert "Saved asking prices from 3 snapshot files, 1 Jan 2025 to 1 Mar 2025" in page.inner_text("#history-note")
+
+    def history(title):
+        card = page.locator("#results li", has=page.get_by_role("heading", name=title, exact=True))
+        card.locator("details.history summary").click()
+        return card.locator("details.history").inner_text()
+
+    rise = history("Rise")
+    assert "went up from COP 1,000,000 (seen 1 Jan 2025) to COP 1,200,000 (seen 1 Feb 2025)" in rise
+    assert "row 2" in rise and "metrocuadrado-x_details_20250101_100000.csv" in rise
+    assert history("Rise") == "Saved asking prices (1 change seen)"  # second click collapses
+    gap = history("Gap")
+    assert "when it changed is not known" in gap and "No readable price" in gap and "went" not in gap
+    clash = history("Clash")
+    assert "Conflicting prices COP 3,000,000 or COP 3,500,000, not compared" in clash and "went" not in clash
+    one = history(HOSTILE)
+    assert "Only one saved asking price: COP 4,000,000 on 1 Jan 2025" in one
+    assert "not enough to see a change" in one and page.evaluate("window.pwned ?? null") is None
+    assert "No saved asking prices for this home in the history snapshots" in history("Absent")
+
+    for title in ("Rise", "Gap"):
+        page.locator("#results li", has=page.get_by_role("heading", name=title, exact=True)).get_by_label("Choose to compare").check()
+    assert page.locator("#compare details.history").count() == 2
+    with page.expect_download() as download:
+        page.click("#download")
+    shortlist = tmp_path / "shortlist.html"
+    download.value.save_as(shortlist)
+    text = shortlist.read_text(encoding="utf-8")
+    assert BASE + "clash" not in text and BASE + "one" not in text and "pwned" not in text
+    reopened = offline(shortlist)
+    assert card_titles(reopened) == ["Rise", "Gap"]
+    assert "3 snapshot files" in reopened.inner_text("#history-note")
+    reopened.locator("#results details.history summary").first.click()
+    assert "went up from COP 1,000,000" in reopened.locator("#results details.history").first.inner_text()
+
+
+def test_default_page_shows_no_history_controls(tmp_path, offline):
+    path, _ = build(tmp_path, [{"url": "https://example.com/a", "title": "Home"}])
+    page = offline(path)
+    assert page.locator("details.history").count() == 0 and page.locator("#history-note").is_hidden()

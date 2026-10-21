@@ -103,3 +103,49 @@ def test_cli_failures_are_actionable_without_traceback(tmp_path, case):
     assert result.returncode != 0
     assert expected in result.stderr and "Traceback" not in result.stderr
     assert (path.read_bytes() if path.exists() else None) == before
+
+
+def test_history_option_embeds_page_homes_only_and_reports_mismatches(tmp_path):
+    from tests.test_history import BASE, info, snapshot
+    data = tmp_path / "data"
+    snapshot(data, "20250101_100000", [(BASE + "a", info("$ 2.000.000"), "2025-01-01 10:00:00+00:00"),
+                                       (BASE + "other", info("$ 9.000.000"), "2025-01-01 10:01:00+00:00")])
+    snapshot(data, "20250201_100000", [(BASE + "a", info("$ 2.500.000"), "2025-02-01 10:00:00+00:00")])
+    write_export(data / "listings.csv", [
+        {"url": BASE + "a?src=x", "price": "2400000", "last_seen": "2025-02-01T10:00:00+00:00"},
+        {"url": BASE + "new", "last_seen": "2025-03-01T00:00:00+00:00"}])
+    result = browse(tmp_path, "--history-data", "data")
+    assert result.returncode == 0, result.stderr
+    out = result.stdout
+    assert "this can take a minute" in out and "2 snapshot files, 2025-01-01 to 2025-02-01" in out
+    assert "1 homes show a page price that differs" in out and "1 homes were last seen after" in out
+    page = embedded((data / "browse" / "listings.html").read_text(encoding="utf-8"))
+    assert sorted(page["history"]) == [BASE + "a", BASE + "new"]  # the unrelated archive listing is not embedded
+    assert page["history"][BASE + "a"]["notes"] == ["price_differs"]
+    assert page["history"][BASE + "new"] == {"state": "absent", "runs": [], "changes": [], "notes": ["after_archive"]}
+    assert page["rows"][0]["price"] == 2400000  # the card price is never replaced by history
+    assert page["meta"]["history"]["change_events"] == 1 and page["meta"]["history"]["changed_listings"] == 1
+
+
+@pytest.mark.parametrize("case", ["missing", "malformed"])
+def test_history_failure_keeps_previous_page(tmp_path, case):
+    from tests.test_history import BASE, snapshot
+    write_export(tmp_path / "data" / "listings.csv", [{"url": "https://example.com/a"}])
+    if case == "malformed":
+        snapshot(tmp_path / "data", "20250101_100000", [(BASE + "a", "[1, 2]", "2025-01-01 10:00:00")])
+    output = tmp_path / "data" / "browse" / "listings.html"
+    output.parent.mkdir()
+    output.write_text("old page")
+    result = browse(tmp_path, "--history-data", "data" if case == "malformed" else "nowhere")
+    assert result.returncode == 1 and "Traceback" not in result.stderr
+    assert ("information is not a saved dictionary" if case == "malformed" else "does not exist") in result.stderr
+    assert "is unchanged" in result.stderr and "Leave out --history-data" in result.stderr
+    assert output.read_text() == "old page" and sorted(p.name for p in output.parent.iterdir()) == ["listings.html"]
+
+
+def test_default_browse_has_no_history_payload(tmp_path):
+    write_export(tmp_path / "data" / "listings.csv", [{"url": "https://example.com/a"}])
+    result = browse(tmp_path)
+    page = embedded((tmp_path / "data" / "browse" / "listings.html").read_text(encoding="utf-8"))
+    assert result.returncode == 0 and "history" not in page and "history" not in page["meta"]
+    assert "asking prices" not in result.stdout

@@ -40,9 +40,9 @@ scrapers:
       - name: price
         xpath: (//div[@role="status"]//div[contains(@class, "font-bold") and contains(@class, "text-[24px]")])[1]/text()
       - name: area
-        xpath: /html/body/div/div[2]/div[2]/div[2]/div[3]/div[1]/text()
+        xpath: //div[@role="status"]//div[starts-with(normalize-space(text()), "Área Construida")]/text()
       - name: estrato
-        xpath: /html/body/div/div[2]/div[2]/div[2]/div[3]/div[2]/div[2]/text()
+        xpath: //div[@role="status"]//div[starts-with(normalize-space(text()), "Estrato")]/text()
       - name: main_specs
         xpath: //pt-main-specs[@element-id="mainSpecs"]/div/pt-text/text()
       - name: characteristics

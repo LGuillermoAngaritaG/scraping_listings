@@ -165,6 +165,7 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 <section aria-labelledby="results-heading">
   <h2 id="results-heading">Homes</h2>
   <p class="status" id="status" role="status" aria-live="polite" tabindex="-1"></p>
+  <div id="missing" hidden></div>
   <p class="small" id="recency-note"></p>
   <div id="empty" class="empty" hidden></div>
   <ul class="cards" id="results"></ul>
@@ -414,7 +415,7 @@ function renderResults() {
 
 function update() {
   const f = readFilters();
-  $("empty").hidden = true;
+  $("empty").hidden = $("missing").hidden = true;
   if (!f) {
     current = [];
     $("results").replaceChildren();
@@ -429,9 +430,10 @@ function update() {
     $("status").textContent = `${current.length} chosen ${current.length === 1 ? "home" : "homes"}, lowest price first`;
   } else if (current.length) {
     $("status").textContent = `${current.length.toLocaleString("en-US")} ${current.length === 1 ? "home matches" : "homes match"}, lowest price first`;
+    showMissing(missingFacts(f));
   } else {
     $("status").textContent = "No saved homes match these filters.";
-    showWiden(f);
+    showWiden(f, missingFacts(f));
   }
   $("recency-note").textContent = SHORTLIST || !rows.length ? "" : f.recent === null || newest - f.recent <= oldest
     ? "Showing all saved history."
@@ -440,15 +442,40 @@ function update() {
 
 const FILTER_NAMES = { where: "the place or words", max_price: "the highest price", bedrooms: "the bedroom minimum",
   min_price: "the lowest price", bathrooms: "the bathroom minimum", min_area: "the area minimum", source: "the source", recent: "the date limit" };
-function showWiden(f) {
+// Homes that pass every other filter but have no saved value for one numeric fact. Both price
+// limits are one fact. Groups never overlap, but a home missing two such facts is in none of them.
+const FACTS = [["price", ["min_price", "max_price"], "price"], ["bedrooms", ["bedrooms"], "bedroom count"],
+               ["bathrooms", ["bathrooms"], "bathroom count"], ["area_m2", ["min_area"], "area"]];
+function missingFacts(f) {
+  return FACTS.filter(([, names]) => names.some(name => f[name] !== null)).map(([key, names, label]) => {
+    const relaxed = filterRows({ ...f, ...Object.fromEntries(names.map(name => [name, null])) });
+    return { names, label, total: relaxed.length, unknown: relaxed.filter(row => row[key] === null).length, action: names.filter(name => f[name] !== null).length > 1 ? "both price limits" : FILTER_NAMES[names.find(name => f[name] !== null)] };
+  }).filter(group => group.unknown);
+}
+const homes = n => `${n.toLocaleString("en-US")} ${n === 1 ? "home" : "homes"}`;
+const missingLine = g => `${homes(g.unknown)} ${g.unknown === 1 ? "meets" : "meet"} your other filters but ${g.unknown === 1 ? "has" : "have"} no saved ${g.label}, so ${g.unknown === 1 ? "it is" : "they are"} not counted as ${g.unknown === 1 ? "a match" : "matches"}.`;
+function removeButton(names, text) {
+  const button = el("button", { type: "button", text });
+  button.addEventListener("click", () => { for (const name of names) $(name).value = ""; update(); $("status").focus(); });
+  return button;
+}
+function showMissing(groups) {
+  const box = $("missing");
+  box.replaceChildren(...groups.map(g => el("p", { class: "small" }, el("span", { text: missingLine(g) + ` Removing ${g.action} shows ${homes(g.total)} in total, including any with a known ${g.label} outside your limit. ` }),
+    removeButton(g.names, `Remove ${g.action} (${homes(g.total)} total)`))));
+  box.hidden = !groups.length;
+}
+function showWiden(f, groups) {
   const box = $("empty");
+  const single = new Map(groups.filter(g => g.action !== "both price limits").map(g => [g.names.find(name => f[name] !== null), g]));
   const options = !rows.length ? [] : Object.keys(FILTER_NAMES).filter(name => f[name] !== null).map(name => {
-    const n = filterRows({ ...f, [name]: null }).length;
-    const button = el("button", { type: "button", text: `Remove ${FILTER_NAMES[name]} (${n.toLocaleString("en-US")} ${n === 1 ? "home" : "homes"})` });
-    button.addEventListener("click", () => { $(name).value = ""; update(); $("status").focus(); });
-    return el("li", {}, button);
+    const n = filterRows({ ...f, [name]: null }).length, g = single.get(name);
+    return el("li", {}, removeButton([name], `Remove ${FILTER_NAMES[name]} (${homes(n)}${g ? `, ${g.unknown.toLocaleString("en-US")} with no saved ${g.label}` : ""})`));
   });
+  const both = groups.find(g => g.action === "both price limits");
+  if (both) options.push(el("li", {}, removeButton(both.names, `Remove both price limits (${homes(both.total)}, ${both.unknown.toLocaleString("en-US")} with no saved price)`)));
   box.replaceChildren(
+    ...groups.map(g => el("p", { text: missingLine(g) })),
     el("p", { text: rows.length ? "Try removing one filter. Each button shows how many homes you would see:" : "This file has no saved listings. Run 'scrape export' and 'scrape browse' again after scraping." }),
     el("ul", {}, ...options, ...(rows.length ? [el("li", {}, resetButton())] : [])));
   box.hidden = false;

@@ -459,3 +459,57 @@ def test_saved_search_edge_states_blocked_saves_and_older_files(tmp_path, offlin
     assert page.input_value("#bedrooms") == "dos" and "whole number" in page.inner_text("#bedrooms-error")
     assert page.evaluate("chosen.size") == 3 and "an unknown date" in page.inner_text("#saved-note")
     assert fields(page)["where"] == "chapinero"
+
+
+def test_missing_facts_explain_hidden_homes_without_counting_them_as_matches(tmp_path, offline):
+    old = "2026-01-01T00:00:00+00:00"
+    rows = [{"url": f"https://example.com/{name}", "title": name, "location": loc, **extra}
+            for name, loc, extra in (("known20", "Chapinero", {"area_m2": "20"}), ("unknown", "Chapinero", {"area_m2": ""}),
+                                     ("zero", "Chapinero", {"area_m2": "0"}), ("ok", "Chapinero", {"area_m2": "40"}),
+                                     ("both", "Chapinero", {"area_m2": "", "bedrooms": ""}),
+                                     ("unknown_bed", "Chapinero", {"bedrooms": ""}), ("unknown_price", "Chapinero", {"price": ""}),
+                                     ("pricey", "Chapinero", {"area_m2": "", "price": "9000000"}),
+                                     ("usaquen", "Usaquén", {"area_m2": ""}), ("old", "Chapinero", {"area_m2": "", "last_seen": old}))]
+    path, _ = build(tmp_path, rows)
+    page = offline(path)
+    assert page.locator("#missing").is_hidden()  # default browsing has no numeric limit
+    blank = {"where": "chapinero", "source": None, "recent": 30, "min_price": None, "max_price": 3000000,
+             "bedrooms": None, "bathrooms": None, "min_area": None}
+    facts = lambda **f: [(g["label"], g["unknown"], g["total"], g["action"]) for g in page.evaluate("f => missingFacts(f)", {**blank, **f})]
+    # Known 20 m2 and 0 m2 fail on a known value; place, date and price exclude the others.
+    assert facts(min_area=35) == [("price", 1, 3, "the highest price"), ("area", 2, 6, "the area minimum")]
+    # Separate groups, never summed: "both" lacks area and bedrooms, so it is in neither.
+    assert facts(min_area=35, bedrooms=2) == [("price", 1, 2, "the highest price"), ("bedroom count", 1, 2, "the bedroom minimum"),
+                                              ("area", 1, 4, "the area minimum")]
+    assert facts(min_price=1000000) == [("price", 1, 8, "both price limits")]  # one fact, both limits cleared together
+    assert facts(bathrooms=1, max_price=None) == [] and facts(where="zzz", min_area=35) == []  # all known; no candidates
+
+    page.fill("#where", "chapinero")
+    page.fill("#max_price", "3000000")
+    page.locator("#results > li", has=page.get_by_role("heading", name="ok")).get_by_label("Choose to compare").check()
+    page.get_by_label("Notes on ok").fill("Call the owner")
+    page.click("#more-filters summary")
+    page.fill("#min_area", "60")
+    assert "No saved homes match" in page.inner_text("#status") and page.locator("#missing").is_hidden()
+    assert "2 homes meet your other filters but have no saved area, so they are not counted as matches." in page.inner_text("#empty")
+    assert page.get_by_role("button", name="Remove the area minimum (6 homes, 2 with no saved area)").count() == 1
+    page.fill("#min_area", "35")
+    assert card_titles(page) == ["ok", "unknown_bed"]
+    assert "2 homes meet your other filters but have no saved area" in page.inner_text("#missing")
+    saved = save_search(page, tmp_path / "search.html")
+    assert set(payload(saved)[1]["search"]) == {"fields", "chosen", "saved_at"}  # no lens state is saved
+    page.get_by_role("button", name="Remove the area minimum (6 homes total)").click()
+    assert len(card_titles(page)) == 6 and page.input_value("#max_price") == "3000000"
+    assert "area unknown" in page.locator("#results > li", has=page.get_by_role("heading", name="unknown", exact=True)).inner_text()
+    assert page.get_by_label("Notes on ok").input_value() == "Call the owner"
+    page.fill("#max_price", "-1")
+    assert page.locator("#missing").is_hidden() and page.locator("#empty").is_hidden()
+
+    reopened = offline(saved)
+    assert card_titles(reopened) == ["ok", "unknown_bed"] and "no saved area" in reopened.inner_text("#missing")
+    with reopened.expect_download() as download:
+        reopened.click("#download")
+    download.value.save_as(tmp_path / "shortlist.html")
+    assert [row["title"] for row in payload(tmp_path / "shortlist.html")[1]["rows"]] == ["ok"]
+    recipient = offline(tmp_path / "shortlist.html")
+    assert recipient.locator("#missing").is_hidden() and recipient.locator("#empty").is_hidden()

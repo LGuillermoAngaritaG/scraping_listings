@@ -2,6 +2,37 @@
 
 > **DISCLAIMER**: This project is for academic and educational purposes only. It demonstrates web scraping techniques, config-driven design, and data extraction patterns. Not intended for commercial use or large-scale data harvesting. Users are responsible for complying with applicable laws and website Terms of Service.
 
+## Start here: browse the saved listings
+
+The repository already holds historical listings from Fincaraiz and Metrocuadrado in
+`data/`. You can look through them in a web browser with only Python 3.11 or newer: no
+package install, no browser download, no `config.yaml` edit and no scraping.
+
+```bash
+git clone https://github.com/Andesprit/scraping_listings.git
+cd scraping_listings
+python3 -m app.main browse --from-data data
+```
+
+It reads the saved snapshots (about 15 seconds for the 1,930 committed files, longer on a
+slow disk), then prints how many properties it found, the date of the newest data and the
+page path. Open `data/browse/listings.html` in any web browser. Type a neighbourhood, a
+highest price and a minimum number of bedrooms, for example `chapinero`, `3000000` and `2`,
+then tick homes to compare and **Download shortlist** to save or send them. See
+[Choose and share homes in a browser](#choose-and-share-homes-in-a-browser) for details.
+
+The data is historical: it stops at the newest saved sighting and does not show what is
+available today, so open a home's link to check it. The command does not change `data/`;
+the page goes to the Git-ignored `data/browse/` folder. If the folder is wrong or a
+snapshot cannot be read, it says which folder or file and keeps any earlier page.
+
+Optional, slower: `python3 -m app.main browse --from-data data --history-data data` reads
+every snapshot a second time to add each home's saved asking prices
+([details](#optional-saved-asking-prices-per-home)).
+
+To scrape new listings, follow [Quickstart](#quickstart); to analyse the data in a
+notebook, see [Data Analysis](#data-analysis).
+
 ## Overview
 
 A config-driven web scraper for extracting property listing data from Colombian real estate websites. Supports two scraping engines:
@@ -219,6 +250,11 @@ It needs no Python, server, account or internet connection once written:
 scrape export          # once, or after new scrapes
 scrape browse          # writes data/browse/listings.html
 ```
+
+Without an export, `scrape browse --from-data data` (or `python3 -m app.main browse
+--from-data data` without installing anything) builds the same page straight from the raw
+snapshots in `data/`, using a temporary export that is deleted afterwards. It cannot be
+combined with `--input`.
 
 It prints the file path, the number of properties and the newest data date. Open the
 file, then type a neighbourhood or words from the title, a highest price in COP and a

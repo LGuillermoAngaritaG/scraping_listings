@@ -10,6 +10,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+from app.services.export import export_listings
 from app.services.search import load_listings
 
 TEMPLATE = Path(__file__).with_name("browse.html")
@@ -86,7 +87,11 @@ def browse_main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(
         prog="scrape browse",
         description="Write saved listings as one HTML page to filter, compare and share homes offline")
-    parser.add_argument("--input", default="data/listings.csv", help="Export CSV (default: data/listings.csv)")
+    source = parser.add_mutually_exclusive_group()
+    source.add_argument("--input", help="Export CSV (default: data/listings.csv)")
+    source.add_argument("--from-data", metavar="FOLDER",
+                        help="Build the page straight from the saved *_details_*.csv snapshots in FOLDER "
+                             "(usually data), with no export file and no scraper setup")
     parser.add_argument("--output", default="data/browse/listings.html",
                         help="HTML file to write (default: data/browse/listings.html)")
     parser.add_argument("--history-data", metavar="FOLDER",
@@ -94,21 +99,26 @@ def browse_main(argv: list[str]) -> int:
                              "snapshots in FOLDER (usually data). Optional; reads every snapshot, "
                              "which can take a minute or more")
     args = parser.parse_args(argv)
-    path, output = Path(args.input), Path(args.output)
+    path, output = Path(args.input or "data/listings.csv"), Path(args.output)
     if output.suffix.lower() not in (".html", ".htm"):
         parser.error("--output must end in .html so it cannot replace a CSV")
-    if output.exists() and output.resolve() == path.resolve():
-        parser.error("--output must differ from --input")
-    refresh = shlex.join(["scrape", "export"] + (["--output", str(path)] if args.input != "data/listings.csv" else []))
-    try:
-        data = catalogue_data(load_listings(path))
-    except FileNotFoundError:
-        print(f"Error: No export file at {path}. Run '{refresh}' first, or choose an existing CSV with --input.",
-              file=sys.stderr)
-        return 1
-    except (ValueError, OSError, csv.Error) as error:
-        print(f"Error: Cannot read {path}: {error}. Run '{refresh}' to rebuild the export.", file=sys.stderr)
-        return 1
+    if args.from_data:
+        data = snapshot_catalogue(Path(args.from_data), output)
+        if data is None:
+            return 1
+    else:
+        if output.exists() and output.resolve() == path.resolve():
+            parser.error("--output must differ from --input")
+        refresh = shlex.join(["scrape", "export"] + (["--output", str(path)] if args.input not in (None, "data/listings.csv") else []))
+        try:
+            data = catalogue_data(load_listings(path))
+        except FileNotFoundError:
+            print(f"Error: No export file at {path}. Run '{refresh}' first, or choose an existing CSV with --input. "
+                  "Without an export, build the page from saved snapshots with --from-data data.", file=sys.stderr)
+            return 1
+        except (ValueError, OSError, csv.Error) as error:
+            print(f"Error: Cannot read {path}: {error}. Run '{refresh}' to rebuild the export.", file=sys.stderr)
+            return 1
     if args.history_data:
         from app.services.history import read_history
         print(f"Reading saved asking prices from {args.history_data}/ (optional; this can take a minute or more)...",
@@ -129,7 +139,9 @@ def browse_main(argv: list[str]) -> int:
               "Choose a writable location with --output.", file=sys.stderr)
         return 1
     meta = data["meta"]
-    if meta["data_date"] is None:
+    if meta["data_date"] is None and args.from_data:
+        print(f"Wrote {output}: the snapshots in {args.from_data}/ hold no readable listings, so the page will be empty.")
+    elif meta["data_date"] is None:
         print(f"Wrote {output}: the export has no listings, so the page will be empty. "
               f"Run '{refresh}' after scraping, then run this again.")
     else:
@@ -138,6 +150,36 @@ def browse_main(argv: list[str]) -> int:
     print("Open it in a web browser; it works offline. Choose homes there and use "
           "'Download shortlist' to save or send only those.")
     return 0
+
+
+def snapshot_catalogue(folder: Path, output: Path) -> dict | None:
+    """Page payload from raw snapshots via a throwaway export; None after printing the error."""
+    unchanged = f"No page was written; {output} is unchanged." if output.exists() else "No page was written."
+    if not folder.is_dir():
+        print(f"Error: No folder {folder}. Run this from the scraping_listings checkout, where the saved "
+              "snapshots are in data/, or pass the folder that holds the *_details_*.csv files.", file=sys.stderr)
+        return None
+    if not any(folder.glob("*_details_*.csv")):
+        print(f"Error: No saved snapshots (*_details_*.csv files) in {folder}/. Pass the folder that holds them; "
+              "in the scraping_listings checkout that is data.", file=sys.stderr)
+        return None
+    print(f"Reading the saved snapshots in {folder}/ (this can take a minute or more)...", flush=True)
+    try:
+        with tempfile.TemporaryDirectory(prefix="browse-") as scratch:
+            export = Path(scratch) / "listings.csv"
+            stats = export_listings(export, folder)
+            data = catalogue_data(load_listings(export))
+    except OSError as error:
+        name = f" {error.filename}" if error.filename else ""
+        print(f"Error: Cannot read{name}: {error.strerror or error}. Check that you can read the files in "
+              f"{folder}/. {unchanged}", file=sys.stderr)
+        return None
+    except (ValueError, csv.Error) as error:
+        print(f"Error: {error} {unchanged}", file=sys.stderr)
+        return None
+    print(f"Read {stats['files_read']:,} snapshot files in {stats['elapsed_seconds']:.1f}s; skipped "
+          f"{stats['dropped_homepages']:,} homepage rows; the newest saved row wins for each home.")
+    return data
 
 
 def print_history_summary(meta: dict, elapsed: float) -> None:

@@ -150,3 +150,103 @@ def test_default_browse_has_no_history_payload(tmp_path):
     page = embedded((tmp_path / "data" / "browse" / "listings.html").read_text(encoding="utf-8"))
     assert result.returncode == 0 and "history" not in page and "history" not in page["meta"]
     assert "asking prices" not in result.stdout
+
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+def raw_browse(cwd, *args):
+    """Raw-snapshot mode as a newcomer runs it: no site packages, so no scraper dependencies."""
+    env = {**os.environ, "PYTHONPATH": ROOT, "TMPDIR": str(cwd / "tmp")}
+    (cwd / "tmp").mkdir(exist_ok=True)
+    return subprocess.run([sys.executable, "-S", "-B", "-m", "app.main", "browse", *args],
+                          cwd=cwd, text=True, capture_output=True, env=env)
+
+
+@pytest.fixture
+def snapshots(tmp_path):
+    from tests.test_history import BASE, info, snapshot
+    data = tmp_path / "data"
+    snapshot(data, "20250101_100000", [(BASE + "a", info("$ 2.000.000"), "2025-01-01 10:00:00+00:00")])
+    snapshot(data, "20250201_100000", [
+        (BASE + "a", info("$ 2.500.000"), "2025-02-01 10:00:00+00:00"),
+        (BASE + "b", info("$ 1"), "2025-02-01 10:00:00+00:00"),
+        ("https://fr.example/x", info("$ 1", "Lo mejor de buscar es encontrar"), "2025-02-01 10:00:00+00:00")])
+    write_export(data / "listings.csv", [{"url": "https://example.com/unrelated"}])
+    output = data / "browse" / "listings.html"
+    output.parent.mkdir()
+    output.write_text("old page")
+    return data
+
+
+def tree_bytes(folder):
+    return {path.name: path.read_bytes() for path in folder.iterdir() if path.is_file()}
+
+
+def test_from_data_builds_page_from_snapshots_without_site_packages(tmp_path, snapshots):
+    before = tree_bytes(snapshots)
+    result = raw_browse(tmp_path, "--from-data", "data")
+    assert result.returncode == 0, result.stderr
+    out = result.stdout
+    assert out.index("Reading the saved snapshots in data/") < out.index("Read 2 snapshot files")
+    assert "skipped 1 homepage rows" in out
+    assert "data/browse/listings.html: 2 properties, data as of 2025-02-01" in out and "Open it in a web browser" in out
+    page = embedded((snapshots / "browse" / "listings.html").read_text(encoding="utf-8"))
+    assert [(row["url"].rsplit("/", 1)[1], row["price"]) for row in page["rows"]] == [("a", 2500000), ("b", 1)]
+    assert "history" not in page and "asking prices" not in out  # history stays opt-in
+    assert tree_bytes(snapshots) == before  # raw snapshots and the unrelated export are untouched
+    assert sorted(p.name for p in (snapshots / "browse").iterdir()) == ["listings.html"]
+    assert list((tmp_path / "tmp").iterdir()) == []  # the throwaway export is gone
+
+
+def test_from_data_composes_with_explicit_history(tmp_path, snapshots):
+    result = raw_browse(tmp_path, "--from-data", "data", "--history-data", "data")
+    assert result.returncode == 0, result.stderr
+    page = embedded((snapshots / "browse" / "listings.html").read_text(encoding="utf-8"))
+    assert page["meta"]["history"]["change_events"] == 1 and page["history"][page["rows"][0]["url"]]["changes"]
+
+
+def test_from_data_rejects_input_before_reading(tmp_path, snapshots):
+    result = raw_browse(tmp_path, "--from-data", "data", "--input", "data/listings.csv")
+    assert result.returncode == 2 and "not allowed with argument" in result.stderr
+    assert (snapshots / "browse" / "listings.html").read_text() == "old page"
+
+
+@pytest.mark.parametrize("case", ["missing", "empty", "columns", "malformed", "unreadable", "unwritable"])
+def test_from_data_failures_keep_previous_page(tmp_path, snapshots, case):
+    folder, args = "data", []
+    first = snapshots / "metrocuadrado-x_details_20250101_100000.csv"
+    expected = {"missing": "No folder nowhere. Run this from the scraping_listings checkout",
+                "empty": "No saved snapshots (*_details_*.csv files) in empty/",
+                "columns": "expected url and information columns",
+                "malformed": "Invalid information in data/metrocuadrado-x_details_20250101_100000.csv, row 2",
+                "unreadable": f"Cannot read data/{first.name}: Permission denied",
+                "unwritable": "Choose a writable location with --output"}[case]
+    if case == "missing":
+        folder = "nowhere"
+    elif case == "empty":
+        (tmp_path / "empty").mkdir()
+        folder = "empty"
+    elif case == "columns":
+        first.write_text("a,b\n1,2\n")
+    elif case == "malformed":
+        first.write_text("url,information,date_time\nhttps://x,{broken,2025-01-01 10:00:00\n")
+    elif case == "unreadable":
+        first.chmod(0o000)
+    else:
+        locked = tmp_path / "locked"
+        locked.mkdir(mode=0o500)
+        args = ["--output", str(locked / "page.html")]
+    before = tree_bytes(snapshots) if case != "unreadable" else None
+    result = raw_browse(tmp_path, "--from-data", folder, *args)
+    first.chmod(0o644)
+    (tmp_path / "locked").exists() and (tmp_path / "locked").chmod(0o700)
+    assert result.returncode == 1 and "Traceback" not in result.stderr
+    assert expected in result.stderr and "scrape --list" not in result.stderr
+    if case not in ("missing", "empty", "unwritable"):
+        assert "data/browse/listings.html is unchanged" in result.stderr
+    assert (snapshots / "browse" / "listings.html").read_text() == "old page"
+    assert sorted(p.name for p in (snapshots / "browse").iterdir()) == ["listings.html"]
+    assert list((tmp_path / "tmp").iterdir()) == []
+    if before is not None:
+        assert tree_bytes(snapshots) == before

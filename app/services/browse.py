@@ -148,7 +148,8 @@ def browse_main(argv: list[str]) -> int:
         print(f"Wrote {output}: {meta['properties']:,} properties, data as of {meta['data_date']} "
               f"({output.stat().st_size / 1e6:.1f} MB).")
     print("Open it in a web browser; it works offline. Choose homes there and use "
-          "'Download shortlist' to save or send only those.")
+          "'Download shortlist' to save or send only those. Have a shortlist or saved search from an "
+          "earlier page? Use 'Bring in choices' in this page to carry its homes and notes over.")
     return 0
 
 

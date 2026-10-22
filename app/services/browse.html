@@ -85,6 +85,8 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
 .mynote { border-left: 4px solid var(--accent); padding: 4px 8px; margin: 4px 0; }
 .mynote strong { display: block; font-size: .9rem; }
 .mynote p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.carry { margin-top: 16px; }
+.carry input { display: block; margin-top: 4px; max-width: 100%; }
 @media (max-width: 600px) {
   h1 { font-size: 1.35rem; }
   #compare, form { padding: 12px; }
@@ -186,6 +188,13 @@ tbody th { color: var(--muted); font-weight: 600; white-space: nowrap; }
     <button type="button" class="primary" id="download" disabled>Download shortlist</button>
     <button type="button" id="clear" disabled>Remove all choices</button>
   </div>
+  <div class="field carry" id="carry-box">
+    <label for="carry">Bring in choices from a file you saved before</label>
+    <span class="hint" id="carry-hint">Pick a shortlist or saved search downloaded from an earlier page, for example after newer data arrived. Its chosen homes and their notes are added here. A home that is not in this page's data stays chosen with the facts from that file, marked as such.</span>
+    <input type="file" id="carry" accept=".html,.htm,text/html" aria-describedby="carry-hint">
+    <p class="notice" id="carry-error" role="alert"></p>
+    <p class="small" id="carry-done" role="status"></p>
+  </div>
 </section>
 </main>
 
@@ -214,6 +223,7 @@ const newest = META.data_date ? dayNumber(META.data_date) : null;
 const oldest = rows.length ? Math.min(...rows.map(row => dayNumber(row.last_seen))) : null;
 const number = (row, key) => row[key] === null ? Infinity : row[key];
 const searchable = new Map(rows.map(row => [row, [norm(row.location), norm(row.title)]]));
+const byUrl = new Map(rows.map(row => [row.url, row]));
 
 function filterRows(f) {
   const needle = f.where ? norm(f.where) : "";
@@ -286,7 +296,11 @@ function noteEditor(row) {
     counter.classList.toggle("over", over);
     area.setAttribute("aria-invalid", over ? "true" : "false");
   };
-  area.addEventListener("input", () => { notes.set(row.url, area.value); show(); syncNotes(); });
+  area.addEventListener("input", () => {
+    notes.set(row.url, area.value); show(); syncNotes();
+    // A too-long warning about this note is out of date once the note fits.
+    if (area.value.length <= NOTE_MAX) for (const [box, w] of noteWarnings) if (w.url === row.url && box.textContent === w.text) box.textContent = "";
+  });
   show();
   const box = el("div", { class: "note" }, el("label", { for: id, text: `Notes on ${row.title || "Untitled listing"}` }), area, counter);
   editors.set(row.url, box);
@@ -318,6 +332,9 @@ function link(row) {
   return u ? el("a", { href: u.href, target: "_blank", rel: "noopener noreferrer", text: `View on ${u.hostname.replace(/^www\./, "")}` })
            : el("span", { class: "unknown", text: "Link unavailable (not a web address)" });
 }
+const dataAsOf = day => day ? `data as of ${human(day)}` : "data date unknown";
+// A chosen home kept from another saved file because this page's data has no row for it.
+const elsewhere = row => el("p", { class: "notice", text: `Not in this page's data. Facts from another saved file (${dataAsOf(row.from_file.data_date)}), not a new sighting.` });
 
 const utc = iso => `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
 const ref = (label, at, r) => `${label} ${utc(at)}, ${r.slice(0, r.lastIndexOf(":"))} row ${r.slice(r.lastIndexOf(":") + 1)}`;
@@ -374,6 +391,7 @@ function card(row, index) {
     facts,
     el("p", { class: "where" }, fact(row.location || null, "Location unknown")),
     el("p", { class: "seen", text: `Last seen ${human(row.last_seen)} · ${row.source}` }),
+    ...(row.from_file ? [elsewhere(row)] : []),
     link(row),
     ...(HISTORY ? [historyBlock(row)] : []),
     ...(SHORTLIST ? [noteBlock(row)] : []),
@@ -415,6 +433,7 @@ function renderResults() {
 
 function update() {
   const f = readFilters();
+  $("save-done").textContent = $("save-error").textContent = "";  // they described the filters before this edit
   $("empty").hidden = $("missing").hidden = true;
   if (!f) {
     current = [];
@@ -483,12 +502,13 @@ function showWiden(f, groups) {
 
 function renderCompare() {
   const list = [...chosen.values()];
+  $("save-done").textContent = "";  // it counted the choices before this change
   $("download").disabled = $("clear").disabled = list.length === 0;
   $("bar").hidden = SHORTLIST || list.length === 0;
   $("bar-count").textContent = `${list.length} of ${MAX_CHOICES} chosen`;
   $("compare-heading").textContent = SHORTLIST ? "Comparison" : `Your choices (${list.length} of ${MAX_CHOICES})`;
   if (!list.length) {
-    $("compare-body").replaceChildren(el("p", { class: "small", text: SHORTLIST ? "No homes kept in this shortlist." : "Tick Choose to compare on up to four homes to see them side by side here." }));
+    $("compare-body").replaceChildren(el("p", { class: "small", text: SHORTLIST ? "No homes kept in this shortlist." : "Tick Choose to compare on up to four homes to see them side by side here, or bring in choices from a file you saved before (below)." }));
     $("notes").hidden = true;
     return;
   }
@@ -496,7 +516,7 @@ function renderCompare() {
     const remove = el("button", { type: "button", text: "Remove" });
     remove.setAttribute("aria-label", "Remove " + (row.title || "listing"));
     remove.addEventListener("click", () => { chosen.delete(row.url); $("limit").textContent = ""; syncCards(); renderCompare(); });
-    return el("th", { scope: "col" }, el("div", { class: "clamp", text: row.title || "Untitled listing" }), remove);
+    return el("th", { scope: "col" }, el("div", { class: "clamp", text: row.title || "Untitled listing" }), ...(row.from_file ? [elsewhere(row)] : []), remove);
   }));
   const line = (label, render) => el("tr", {}, el("th", { scope: "row", text: label }), ...list.map(row => el("td", {}, render(row))));
   const body = el("tbody", {},
@@ -517,10 +537,12 @@ function renderCompare() {
   $("notes-body").replaceChildren(...list.map(noteEditor));
 }
 
+const noteWarnings = new Map();  // message box -> the note it warned about and the text it showed
 function longNote(list, box, again) {
   const long = list.find(row => (notes.get(row.url) || "").length > NOTE_MAX);
   if (!long) return false;
   box.textContent = `Your note on ${long.title || "a listing"} is longer than ${NOTE_MAX} characters. Shorten it, then ${again} again.`;
+  noteWarnings.set(box, { url: long.url, text: box.textContent });
   editors.get(long.url).querySelector("textarea").focus();
   return true;
 }
@@ -543,8 +565,10 @@ function saveSearch() {
   const kept = keptNotes(list);
   const savedAt = new Date().toISOString();
   const fields = Object.fromEntries(FIELD_IDS.map(name => [name, $(name).value]));
+  const earlier = list.filter(row => row.from_file);
   saveFile({ mode: "catalogue", rows, ...(HISTORY ? { history: HISTORY } : {}), ...(Object.keys(kept).length ? { notes: kept } : {}),
-             search: { fields, chosen: list.map(row => row.url), saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" }, meta: META },
+             search: { fields, chosen: list.map(row => row.url), ...(earlier.length ? { earlier } : {}),
+                       saved_at: savedAt.slice(0, 16).replace("T", " ") + " UTC" }, meta: META },
            `search-${savedAt.slice(0, 10)}.html`);
   $("save-done").textContent = `Downloaded search-${savedAt.slice(0, 10)}.html with these filters and ${list.length} chosen ${list.length === 1 ? "home" : "homes"}. This page is not changed; open the new file to continue from it.`;
 }
@@ -558,6 +582,70 @@ function saveFile(data, name) {
   a.click();
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Rows read from another file are untrusted: keep only the known fields, with the expected types.
+const day = v => typeof v === "string" && /^\d{4}-\d\d-\d\d$/.test(v) ? v : null;
+function cleanRow(r, fileDate) {
+  if (!r || typeof r !== "object" || typeof r.url !== "string" || !r.url) return null;
+  const text = v => typeof v === "string" ? v : "";
+  const num = v => typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null;
+  return { source: text(r.source), url: r.url, title: text(r.title), location: text(r.location),
+           price: num(r.price), bedrooms: num(r.bedrooms), bathrooms: num(r.bathrooms), area_m2: num(r.area_m2),
+           last_seen: day(r.last_seen) || "", from_file: { data_date: r.from_file ? day(r.from_file.data_date) : fileDate } };
+}
+// Choices and notes from an earlier shortlist or saved search. Homes found here take this page's
+// row; the others keep the file's facts, marked. A refused file changes nothing.
+async function carryIn(file) {
+  $("carry-error").textContent = $("carry-done").textContent = "";
+  const refuse = text => { $("carry-error").textContent = `${text} Nothing was changed.`; };
+  if (file.size > 50e6) return refuse(`${file.name} is ${Math.round(file.size / 1e6)} MB, too large to be a shortlist or saved search from this page.`);
+  let source, data = null;
+  try { source = await file.text(); } catch { return refuse(`${file.name} could not be read.`); }
+  try { data = JSON.parse(new DOMParser().parseFromString(source, "text/html").getElementById("data")?.textContent ?? ""); } catch { /* refused below */ }
+  if (!data || typeof data !== "object" || !Array.isArray(data.rows))
+    return refuse(`${file.name} is not a shortlist or saved search downloaded from this page. Choose a file named like shortlist-2026-07-20.html or search-2026-07-20.html.`);
+  const search = data.search && typeof data.search === "object" ? data.search : {};
+  const theirs = new Map([...(Array.isArray(search.earlier) ? search.earlier : []), ...data.rows].map(r => [r?.url, r]));
+  const picked = data.mode === "shortlist" ? data.rows : Array.isArray(search.chosen) ? search.chosen.map(url => theirs.get(url)) : [];
+  const fileDate = day(data.meta?.data_date);
+  const incoming = picked.map(r => cleanRow(r, fileDate));
+  if (incoming.includes(null)) return refuse(`A chosen home in ${file.name} has no link, so the file looks damaged.`);
+  if (!incoming.length) return refuse(`${file.name} has no chosen homes to bring in.`);
+  const fresh = [...new Map(incoming.map(r => [r.url, r])).values()];
+  const adding = fresh.filter(r => !chosen.has(r.url));
+  if (fresh.length > MAX_CHOICES)
+    return refuse(`${file.name} has ${homes(fresh.length)} chosen, more than the ${MAX_CHOICES} this page allows, so it was not saved from this page.`);
+  if (chosen.size + adding.length > MAX_CHOICES)
+    return refuse(`${file.name} has ${homes(adding.length)} that you have not chosen here, and you already have ${chosen.size} of ${MAX_CHOICES}. Remove ${chosen.size + adding.length - MAX_CHOICES} below, then bring the file in again.`);
+  const theirNotes = data.notes && typeof data.notes === "object" ? data.notes : {};
+  const gone = [], prices = [];
+  let added = 0;
+  for (const r of fresh) {
+    const here = byUrl.get(r.url);
+    if (!chosen.has(r.url)) chosen.set(r.url, here || r);
+    if (!here) gone.push(r);
+    else if (r.price !== null && here.price !== null && r.price !== here.price)
+      prices.push(`${here.title || "Untitled listing"}: ${cop(r.price)} in that file, ${cop(here.price)} here`);
+    const note = theirNotes[r.url], mine = notes.get(r.url) || "";
+    if (typeof note === "string" && note.trim() && !mine.includes(note)) {
+      const text = mine.trim() ? `${mine}\n\n${note}` : note;  // never overwrite a note typed here
+      notes.set(r.url, text);
+      const area = editors.get(r.url)?.querySelector("textarea");
+      if (area) { area.value = text; area.dispatchEvent(new Event("input")); }
+      added++;
+    }
+  }
+  syncCards();
+  renderCompare();
+  const present = fresh.length - gone.length;
+  $("carry-done").textContent = [
+    `From ${file.name} (${dataAsOf(fileDate)}; this page: ${dataAsOf(META.data_date)}): ${homes(fresh.length)} chosen there, ${adding.length} added to your choices, ${added} ${added === 1 ? "note" : "notes"} brought in.`,
+    present ? `${homes(present)} ${present === 1 ? "is" : "are"} in this page's data and now ${present === 1 ? "shows" : "show"} its facts.` : "",
+    gone.length ? `${homes(gone.length)} ${gone.length === 1 ? "is" : "are"} not in this page's data, which does not mean ${gone.length === 1 ? "it was" : "they were"} rented: ${gone.length === 1 ? "it stays" : "they stay"} chosen with the facts from that file, marked in the comparison.` : "",
+    prices.length ? `Price differs from that file for ${prices.join("; ")}.` : "",
+    "Download shortlist or Save this search to keep this.",
+  ].filter(Boolean).join(" ");
 }
 
 function resetButton() {
@@ -578,7 +666,8 @@ $("source").append(...sources.map(s => el("option", { value: s, text: s })));
 $("save-count").textContent = rows.length.toLocaleString("en-US");
 const restoreProblems = [];
 if (SAVED) {
-  const byUrl = new Map(rows.map(row => [row.url, row]));
+  // Chosen homes that this file's data lacks were saved with the facts they came with.
+  const earlier = new Map((Array.isArray(SAVED.earlier) ? SAVED.earlier : []).map(r => cleanRow(r, null)).filter(Boolean).map(r => [r.url, r]));
   // Restore the exact typed text; the normal parser then validates it like typing would.
   for (const name of FIELD_IDS) {
     const text = SAVED.fields?.[name];
@@ -587,9 +676,10 @@ if (SAVED) {
     if ($(name).value !== text) restoreProblems.push(`The saved value for ${FILTER_NAMES[name]} could not be used here, so that filter shows ${$(name).value ? `"${$(name).value}"` : "no limit"} instead.`);
   }
   for (const url of Array.isArray(SAVED.chosen) ? SAVED.chosen : []) {
-    if (!byUrl.has(url)) restoreProblems.push("A saved choice is not among this file's homes and was skipped.");
+    const row = byUrl.get(url) || earlier.get(url);
+    if (!row) restoreProblems.push("A saved choice is not among this file's homes and was skipped.");
     else if (chosen.size >= MAX_CHOICES) restoreProblems.push(`Only the first ${MAX_CHOICES} saved choices were kept.`);
-    else chosen.set(url, byUrl.get(url));
+    else chosen.set(url, row);
   }
   if (["min_price", "bathrooms", "min_area", "source"].some(n => $(n).value) || $("recent").value !== "30") $("more-filters").open = true;
 }
@@ -598,7 +688,7 @@ if (SHORTLIST) {
   document.title = "Shortlist of saved listings";
   $("heading").textContent = `Shortlist: ${rows.length} ${rows.length === 1 ? "home" : "homes"}`;
   $("provenance").textContent = `Chosen on ${human(META.shortlist_saved_at.slice(0, 10))} from ${META.properties.toLocaleString("en-US")} saved properties whose newest observation is ${human(META.data_date)} (${made}). Each home shows its own last sighting.`;
-  $("filters").hidden = true;
+  $("filters").hidden = $("carry-box").hidden = true;
   $("recent").value = "";
   $("keep-note").textContent = "This file contains only these homes. Untick one to drop it, then Download shortlist again to save the smaller list.";
   $("notes-hint").textContent = "Personal notes saved in this file by whoever made it, kept apart from the listing facts. You can edit them, but changes and removals are only kept when you Download shortlist again; reloading loses unsaved changes. Anyone who gets the file can read its notes.";
@@ -633,6 +723,10 @@ $("more").addEventListener("click", () => {
 $("reset").addEventListener("click", reset);
 $("download").addEventListener("click", download);
 $("save-search").addEventListener("click", saveSearch);
+$("carry").addEventListener("change", async () => {
+  if ($("carry").files.length) await carryIn($("carry").files[0]);
+  $("carry").value = "";  // so the same file can be picked again
+});
 $("clear").addEventListener("click", () => { chosen.clear(); $("limit").textContent = ""; syncCards(); renderCompare(); });
 update();
 renderCompare();

@@ -513,3 +513,124 @@ def test_missing_facts_explain_hidden_homes_without_counting_them_as_matches(tmp
     assert [row["title"] for row in payload(tmp_path / "shortlist.html")[1]["rows"]] == ["ok"]
     recipient = offline(tmp_path / "shortlist.html")
     assert recipient.locator("#missing").is_hidden() and recipient.locator("#empty").is_hidden()
+
+
+def carry(page, path):
+    page.set_input_files("#carry", str(path))
+    page.wait_for_function("document.getElementById('carry-done').textContent || document.getElementById('carry-error').textContent")
+
+
+def test_choices_and_notes_carry_into_newer_data_and_keep_homes_it_lacks(tmp_path, offline):
+    url = "https://example.com/{}".format
+    old_rows = [{"url": url(u), "title": t, "price": p, "location": loc, "last_seen": "2026-01-25T00:00:00+00:00"}
+                for u, t, p, loc in (("a", "Home A", "2000000", "Usaquén"), ("b", "Home B", "2500000", "Usaquén"),
+                                     ("gone", "Home Gone", "1800000", HOSTILE), ("x", "Not chosen", "1000000", "Usaquén"))]
+    old_page, _ = build(tmp_path / "old", old_rows)
+    page = offline(old_page)
+    for title in ("Home A", "Home B", "Home Gone"):
+        page.locator("#results > li", has=page.get_by_role("heading", name=title)).get_by_label("Choose to compare").check()
+    note_a, note_gone = "Cerca del trabajo.\n¿Incluye administración?", "Llamar\n" + HOSTILE
+    page.get_by_label("Notes on Home A").fill(note_a)
+    page.get_by_label("Notes on Home Gone").fill(note_gone)
+    with page.expect_download() as download:
+        page.click("#download")
+    old_short = tmp_path / "old" / "shortlist.html"
+    download.value.save_as(old_short)
+    page.get_by_role("button", name="Remove Home B").click()
+    old_search = save_search(page, tmp_path / "old" / "search.html")
+
+    new_rows = [{"url": url(u), "title": t, "price": p}
+                for u, t, p in (("a", "Home A", "2200000"), ("b", "Home B", "2500000"), ("c", "Home C", "1900000"),
+                                ("e", "Home E", "1950000"), ("f", "Home F", "1960000"))]
+    new_page, _ = build(tmp_path / "new", new_rows)
+    page = offline(new_page)
+    page.locator("#results > li", has=page.get_by_role("heading", name="Home C")).get_by_label("Choose to compare").check()
+    carry(page, old_short)
+    done = page.inner_text("#carry-done")
+    assert page.inner_text("#carry-error") == ""
+    assert "shortlist.html (data as of 25 Jan 2026; this page: data as of 19 Jul 2026)" in done
+    assert "3 homes chosen there, 3 added to your choices, 2 notes brought in" in done
+    assert "1 home is not in this page's data" in done and "Home A: COP 2,000,000 in that file, COP 2,200,000 here" in done
+    assert page.evaluate("[...chosen.keys()]") == [url("c"), url("a"), url("b"), url("gone")]
+    gone_head = page.locator("#compare thead th").nth(3).inner_text()
+    assert "Not in this page's data. Facts from another saved file" in gone_head and "data as of 25 Jan 2026" in gone_head
+    price_row = page.locator("#compare tbody tr").first.inner_text()
+    assert "COP 2,200,000" in price_row and "COP 1,800,000" in price_row and "COP 2,000,000" not in price_row
+    assert page.get_by_label("Notes on Home A").input_value() == note_a
+    assert page.get_by_label("Notes on Home Gone").input_value() == note_gone
+    assert page.evaluate("window.pwned ?? null") is None
+    carry(page, old_short)  # the same file again changes nothing
+    assert "0 added to your choices, 0 notes brought in" in page.inner_text("#carry-done")
+    assert page.evaluate("chosen.size") == 4 and page.get_by_label("Notes on Home A").input_value() == note_a
+
+    with page.expect_download() as download:
+        page.click("#download")
+    shortlist = tmp_path / "new" / "shortlist.html"
+    download.value.save_as(shortlist)
+    _, short = payload(shortlist)
+    assert [row["url"] for row in short["rows"]] == [url("c"), url("a"), url("b"), url("gone")]
+    assert short["rows"][3]["from_file"] == {"data_date": "2026-01-25"} and short["rows"][3]["location"] == HOSTILE
+    assert short["notes"] == {url("a"): note_a, url("gone"): note_gone}
+    recipient = offline(shortlist)
+    assert card_titles(recipient) == ["Home Gone", "Home C", "Home A", "Home B"] and recipient.locator("#carry").is_hidden()
+    gone_card = recipient.locator("#results > li").first
+    assert "Not in this page's data. Facts from another saved file" in gone_card.inner_text()
+    assert gone_card.locator(".mynote p").text_content() == note_gone and recipient.evaluate("window.pwned ?? null") is None
+
+    reopened = offline(save_search(page, tmp_path / "new" / "search.html"))
+    assert payload(tmp_path / "new" / "search.html")[1]["search"]["earlier"][0]["url"] == url("gone")
+    assert reopened.evaluate("[...chosen.keys()]") == [url("c"), url("a"), url("b"), url("gone")]
+    assert reopened.inner_text("#restore-warning") == "" and "4 chosen homes" in reopened.inner_text("#saved-note")
+    assert reopened.get_by_label("Notes on Home Gone").input_value() == note_gone
+    with reopened.expect_download() as download:
+        reopened.click("#download")
+    download.value.save_as(tmp_path / "new" / "again.html")
+    assert payload(tmp_path / "new" / "again.html")[1]["rows"][3]["from_file"] == {"data_date": "2026-01-25"}
+
+    # Refused files change nothing.
+    page = offline(new_page)
+    junk = tmp_path / "junk.html"
+    junk.write_text("<p>hello</p>", encoding="utf-8")
+    carry(page, junk)
+    assert "not a shortlist or saved search" in page.inner_text("#carry-error")
+    assert "Nothing was changed" in page.inner_text("#carry-error") and page.inner_text("#carry-done") == ""
+    carry(page, new_page)
+    assert "has no chosen homes" in page.inner_text("#carry-error")
+    no_link = tmp_path / "no-link.html"
+    no_link.write_text(render_page({"mode": "shortlist", "rows": [{"title": "No link"}], "meta": {}}), encoding="utf-8")
+    carry(page, no_link)
+    assert "damaged" in page.inner_text("#carry-error") and page.evaluate("chosen.size") == 0
+    five = tmp_path / "five.html"
+    five.write_text(render_page({"mode": "shortlist", "rows": [{"url": url(i)} for i in range(5)], "meta": {}}), encoding="utf-8")
+    carry(page, five)
+    assert "more than the 4 this page allows" in page.inner_text("#carry-error") and page.evaluate("chosen.size") == 0
+    for title in ("Home C", "Home E", "Home F"):
+        page.locator("#results > li", has=page.get_by_role("heading", name=title)).get_by_label("Choose to compare").check()
+    carry(page, old_search)  # Home A and Home Gone: one more than fits
+    assert "Remove 1" in page.inner_text("#carry-error") and page.evaluate("chosen.size") == 3
+    page.get_by_role("button", name="Remove Home F").click()
+    carry(page, old_search)
+    assert page.inner_text("#carry-error") == ""
+    assert page.evaluate("[...chosen.keys()]") == [url("c"), url("e"), url("a"), url("gone")]
+    assert page.get_by_label("Notes on Home Gone").input_value() == note_gone
+
+
+def test_save_and_long_note_messages_clear_once_out_of_date(tmp_path, offline):
+    path, _ = build(tmp_path, [{"url": f"https://example.com/{i}", "title": f"Home {i}"} for i in range(2)])
+    page = offline(path)
+    page.get_by_label("Choose to compare").first.check()
+    save_search(page, tmp_path / "search.html")
+    assert "with these filters and 1 chosen home." in page.inner_text("#save-done")
+    page.fill("#where", "home")  # the file no longer has these filters
+    assert page.inner_text("#save-done") == ""
+    save_search(page, tmp_path / "search-2.html")
+    page.get_by_label("Choose to compare").nth(1).check()  # nor these choices
+    assert page.inner_text("#save-done") == ""
+    page.get_by_label("Notes on Home 1").fill("x" * 1001)
+    page.click("#download")
+    page.click("#save-search")
+    assert "longer than 1000" in page.inner_text("#limit") and "longer than 1000" in page.inner_text("#save-error")
+    page.get_by_label("Notes on Home 0").fill("another note")  # not the long one
+    assert "longer than 1000" in page.inner_text("#limit")
+    page.get_by_label("Notes on Home 1").fill("short now")
+    assert page.inner_text("#limit") == "" and page.inner_text("#save-error") == ""

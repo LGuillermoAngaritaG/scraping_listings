@@ -304,6 +304,20 @@ same dated data. To send only the chosen homes, use **Download shortlist** from 
 search; that smaller file leaves out the other homes, the filters and notes on removed
 homes. A saved search does not update itself with newer scrapes.
 
+To carry your choices into a newer page, for example after new snapshots arrived and you
+ran `browse` again, open the new page and use **Bring in choices from a file you saved
+before** under the comparison. Pick a shortlist or saved search you downloaded earlier.
+Its chosen homes and their notes are added to your choices, up to four in total; if they
+do not fit, nothing changes and the page says how many to remove first. A home that is in
+the new page's data shows the new facts, and the message lists homes whose price differs
+between the file and the page, with the data date of each. A home that is not in the new
+data stays chosen with the facts from your file, marked "Not in this page's data", and
+**Download shortlist** and **Save this search** keep it and its note. Missing does not
+mean rented: the new data simply has no sighting of it. If you already typed a note on the
+same home, it is kept and the file's note is added below it. Filters are not brought in.
+A file that is not a shortlist or saved search from this page is refused and nothing
+changes.
+
 #### Optional: saved asking prices per home
 
 ```bash

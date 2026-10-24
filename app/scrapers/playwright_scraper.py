@@ -1,5 +1,5 @@
 import asyncio
-from playwright.async_api import async_playwright, Page
+from playwright.async_api import async_playwright, Page, Error as PlaywrightError
 from typing import Any, Iterator
 from app.scrapers.base import BaseScraper
 from app.models.scraper import ScraperInput, ScraperOutput, SimpleInfo, DynamicInfo
@@ -43,7 +43,14 @@ class PlaywrightScraper(BaseScraper):
         
         async def run_scraping():
             async with async_playwright() as p:
-                browser = await p.chromium.launch(headless=self.headless)
+                try:
+                    browser = await p.chromium.launch(headless=self.headless)
+                except PlaywrightError as error:
+                    if "Executable doesn't exist" in str(error):
+                        raise ValueError(
+                            "Chromium for Playwright is not installed; run: playwright install chromium"
+                        ) from None
+                    raise
                 context = await browser.new_context(
                     user_agent='Mozilla/5.0 (compatible; PlaywrightScraper/1.0)'
                 )

@@ -2,6 +2,37 @@
 
 > **DISCLAIMER**: This project is for academic and educational purposes only. It demonstrates web scraping techniques, config-driven design, and data extraction patterns. Not intended for commercial use or large-scale data harvesting. Users are responsible for complying with applicable laws and website Terms of Service.
 
+## Start here: browse the saved listings
+
+The repository already holds historical listings from Fincaraiz and Metrocuadrado in
+`data/`. You can look through them in a web browser with only Python 3.11 or newer: no
+package install, no browser download, no `config.yaml` edit and no scraping.
+
+```bash
+git clone https://github.com/Andesprit/scraping_listings.git
+cd scraping_listings
+python3 -m app.main browse --from-data data
+```
+
+It reads the saved snapshots (about 15 seconds for the 1,930 committed files, longer on a
+slow disk), then prints how many properties it found, the date of the newest data and the
+page path. Open `data/browse/listings.html` in any web browser. Type a neighbourhood, a
+highest price and a minimum number of bedrooms, for example `chapinero`, `3000000` and `2`,
+then tick homes to compare and **Download shortlist** to save or send them. See
+[Choose and share homes in a browser](#choose-and-share-homes-in-a-browser) for details.
+
+The data is historical: it stops at the newest saved sighting and does not show what is
+available today, so open a home's link to check it. The command does not change `data/`;
+the page goes to the Git-ignored `data/browse/` folder. If the folder is wrong or a
+snapshot cannot be read, it says which folder or file and keeps any earlier page.
+
+Optional, slower: `python3 -m app.main browse --from-data data --history-data data` reads
+every snapshot a second time to add each home's saved asking prices
+([details](#optional-saved-asking-prices-per-home)).
+
+To scrape new listings, follow [Quickstart](#quickstart); to analyse the data in a
+notebook, see [Data Analysis](#data-analysis).
+
 ## Overview
 
 A config-driven web scraper for extracting property listing data from Colombian real estate websites. Supports two scraping engines:
@@ -22,50 +53,91 @@ A config-driven web scraper for extracting property listing data from Colombian 
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/LGuillermoAngaritaG/scraping_listings/blob/main/analyze_artifacts.ipynb)
 
-Use the Jupyter notebook to analyze scraped data with pandas, visualizations, and statistics.
+`analyze_artifacts.ipynb` summarises the saved listings: where the data comes from and how
+old it is, missing values, property types, apartment rents, rents by location and bedrooms,
+and when properties were last seen. Run all cells; nothing needs editing.
 
-## Installation
+- **Colab:** the badge opens the notebook from the published `main` branch. Its first cell
+  clones this repository (about 300 MB of saved data) into `/content/scraping_listings`, and
+  reuses that copy when you run it again.
+- **Locally:** from the repository root, in any Python 3.11+ environment:
 
-### 1. Clone and Setup
+  ```bash
+  pip install pandas matplotlib notebook
+  jupyter notebook analyze_artifacts.ipynb
+  ```
+
+  The `.venv` from `uv sync --frozen` also has pandas and matplotlib if you select it as
+  the kernel in an editor.
+
+The notebook builds the same clean table as `scrape export` in a temporary folder; it does
+not change `data/` or need a browser or scraper setup. It counts properties, merging links
+that differ only by tracking codes, and says how many links that merged. Property types
+come from the first word of the title. Location comparisons use Metrocuadrado apartments
+only, because Fincaraiz locations have no city. The data is historical: it stops at the
+newest saved sighting and does not show current availability or price trends. If a step
+cannot run (wrong folder, missing or unreadable data), the notebook stops with a message
+saying what to do instead of continuing with empty results.
+
+## Quickstart
+
+Use Python 3.11 or newer and [uv](https://docs.astral.sh/uv/). Run from the repository
+directory so the CLI can find `config.yaml` and the saved `data/` snapshots.
 
 ```bash
-git clone https://github.com/yourusername/scraping_listings.git
+git clone https://github.com/Andesprit/scraping_listings.git
 cd scraping_listings
-```
-
-### 2. Install Dependencies
-
-```bash
-# Install uv (recommended)
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Create virtual environment
-uv venv
+uv sync --frozen --no-dev
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install project
-uv pip install -e .
-
-# Install Playwright browsers (if using Playwright scrapers)
+# Needed for Playwright scrapers such as Metrocuadrado; Fincaraiz uses Scrapy
 playwright install chromium
-playwright install-deps chromium
+scrape --list
 ```
 
-### 3. Verify Installation
+For a short first scrape, change `number_of_pages` to `1` in the
+`fincaraiz-bogota-leasing` entry in `config.yaml`, then run:
 
 ```bash
-scrape --help
+scrape fincaraiz-bogota-leasing
+scrape export
+scrape search --max-price 3000000 --bedrooms 2 --where chapinero
+scrape browse   # then open data/browse/listings.html in a web browser
 ```
+
+The scrape summary tells you how many listings were saved, where the two raw CSVs are,
+and which fields were filled. Search the exported listings directly, or open
+`data/listings.csv` in a spreadsheet for numeric prices, room counts and areas.
+The export includes the repository's historical snapshots;
+it also works offline, so you can run it before your first scrape. A field with no values
+makes the scrape exit **1**, but the saved data remains available for export.
+
+On Linux, if Chromium reports missing system libraries, run
+`playwright install-deps chromium`. If Chromium itself is missing, the scraper tells you
+to run `playwright install chromium` in the activated environment. To install development
+tools as well, use `uv sync --frozen --extra dev`.
+
+Mercado Libre is currently **unsupported**: its search redirects to account verification
+instead of listings. `scrape --list` shows that reason, and running its name stops with
+the same explanation before opening a browser. Use Fincaraiz or Metrocuadrado instead.
 
 ## Usage
 
 ### Basic Command
 
 ```bash
+# Discover configured names and descriptions (also shown by `scrape` with no args)
+scrape --list
+
 # Run a scraper by name (from config.yaml)
 scrape fincaraiz-bogota-leasing
 scrape metrocuadrado-bogota-leasing
 ```
+
+Run these commands from the directory containing `config.yaml`; the CLI reads that file
+from the current directory. A wrong name or invalid config explains what to fix before
+scraping starts. If a search returns no listing URLs, check `urls_xpath` and the search
+URL reported in the error.
 
 ### Output
 
@@ -77,9 +149,223 @@ data/
 └── fincaraiz-bogota-leasing_details_20241016_140612.csv
 ```
 
+Every completed run prints the number of listings saved, both CSV paths, and the filled
+count for each configured field, for example `pricing: 20/20 filled`. The CSV columns
+remain `url`, `information`, and `date_time`; `information` contains a Python dictionary
+representation of the extracted fields, as in the historical data.
+
+A run exits **1** if any configured field is empty in every listing (or no listings were
+saved). The summary names those fields and asks you to check their selectors. CSVs are
+saved incrementally and remain available even when the run fails. Partially filled fields
+are reported but do not by themselves fail the run. Healthy runs exit **0**. Scheduled
+workflows still upload artifacts and commit saved data when a scrape fails, while marking
+the scrape step as failed.
+
+### Export a table for a spreadsheet or pandas
+
+From the repository root, combine the saved detail snapshots into one CSV:
+
+```bash
+scrape export                         # writes data/listings.csv
+scrape export --output /tmp/listings.csv
+```
+
+The generated `data/listings.csv` is git-ignored; scheduled workflows continue to commit
+the raw snapshots only. Custom export paths are still supported.
+
+This works offline and needs no `config.yaml` or browser. It reads
+`data/*_details_*.csv`, leaves the raw files intact, and reports listings written,
+counts per source, filled counts and percentages for every column, homepage rows
+dropped, elapsed time, and the output path. An invalid input or unwritable output
+gives a plain error and exits **1**; a completed export exits **0**. An existing
+export is replaced only after the new CSV has been written successfully. A raw
+pages or details CSV cannot be used as the output path.
+
+| Columns | Meaning |
+| --- | --- |
+| `source`, `url` | Scraper name and the exact saved listing URL |
+| `title`, `location` | Text from the latest valid snapshot |
+| `price` | Numeric price in Colombian pesos |
+| `bedrooms`, `bathrooms` | Whole-number counts, including Metrocuadrado's `main_specs` |
+| `area_m2` | Numeric area in square metres |
+| `estrato` | Residential stratum from 1 to 6; commercial stratum stays empty |
+| `first_seen`, `last_seen` | Earliest and latest saved sightings of that URL, in UTC |
+
+Each exact URL gets one row with the latest valid snapshot's values; missing fields
+stay empty rather than being filled from older snapshots. Known Fincaraiz homepage
+responses are counted and excluded. If a URL's newest response is a homepage, the
+export uses its most recent valid snapshot instead. The sighting dates include
+homepage responses, so `last_seen` records observation, not guaranteed availability.
+Dates come from `date_time`, falling back to the filename timestamp when needed.
+The export is a historical table, not a list of currently available properties.
+
+Missing values, ambiguous ranges, and values with the wrong units stay empty.
+For example, old Fincaraiz rows sometimes have an area in the bathrooms field;
+the export does not turn `253.39 m²` into a bathroom count. It also does not infer
+bedrooms from commercial `Ambiente` counts. Empty fields left by broken selectors
+remain visible in the fill-rate summary. The original CSVs keep their existing format;
+the analysis notebook reads this export.
+
+### Search saved listings
+
+After `scrape export`, find matching properties without opening a spreadsheet:
+
+```bash
+scrape search --max-price 3000000 --bedrooms 2 --where chapinero
+scrape search --max-price 2500000 --bedrooms 1 --where usaquen
+scrape search --source fincaraiz-bogota-leasing --bathrooms 2 --min-area 60 --recent 365 --limit 5
+```
+
+Search prints **Data as of** the newest saved date, the total number of matches, and
+up to 20 results sorted by price in COP, with rooms, area, title, location and links.
+`--min-price`, `--max-price`, `--bedrooms`, `--bathrooms` and `--min-area` use inclusive
+bounds; room counts and area are minimums. A missing number cannot satisfy that filter
+and appears as `—` otherwise. `--where` matches a literal substring in location or title,
+ignoring accents and case: `usaquen` also finds `Usaquén` and `USAQUEN`. `--source` uses
+the exact scraper name. Use `scrape search --help` for all options.
+
+`--recent` defaults to 30 days **before the newest date in the export**, including both
+end dates; `--recent 0` searches only the newest day. This keeps historical snapshots
+searchable even months later. The date describes saved observations, not current
+availability. Location matches are text mentions, not geographic boundary checks.
+
+No matches is a successful search (exit **0**). Search shows how many listings would match
+if each active filter alone were removed, including the default recency filter, so you
+can decide what to widen. Multiple restrictions may need widening together.
+
+Search reads `data/listings.csv` by default; use `--input /tmp/listings.csv` for a custom
+export. A missing export gives a one-line instruction to run `scrape export` and exits
+**1**. If raw snapshots are newer than the export's modification time, search warns and
+still uses that export. It never rebuilds automatically; exporting all historical data
+can take several minutes. Search alone collapses repeated slashes in link paths and
+tracking-query variants of the same property, keeping the newest row before filtering
+and counting. Raw CSVs and the exported table retain their original URLs and rows.
+
+### Choose and share homes in a browser
+
+`scrape browse` turns the export into one HTML page you open directly in a web browser.
+It needs no Python, server, account or internet connection once written:
+
+```bash
+scrape export          # once, or after new scrapes
+scrape browse          # writes data/browse/listings.html
+```
+
+Without an export, `scrape browse --from-data data` (or `python3 -m app.main browse
+--from-data data` without installing anything) builds the same page straight from the raw
+snapshots in `data/`, using a temporary export that is deleted afterwards. It cannot be
+combined with `--input`.
+
+It prints the file path, the number of properties and the newest data date. Open the
+file, then type a neighbourhood or words from the title, a highest price in COP and a
+minimum number of bedrooms. **More filters** adds bathrooms, area, lowest price, source
+and how recent. The filters work like `scrape search`: inclusive bounds, missing numbers
+never match a numeric filter, accents and capitals are ignored, prices sort lowest first,
+and "how recent" counts days back from the newest saved observation, not from today
+(leave it empty for all history). Invalid numbers are explained next to the field, and an
+empty result offers buttons that remove one filter, each showing how many homes it would
+bring back.
+
+When a price, bedroom, bathroom or area limit is set, the page also says how many homes
+meet every other filter but have no saved value for that fact (for example "2 homes meet
+your other filters but have no saved area"). They are never counted as matches. Its
+button removes that limit (both price limits together) and shows every home the other
+filters allow, including ones whose known value is outside your limit. Each fact is
+counted on its own and the counts are not added up; a home missing two of the facts you
+asked about is not in any count. A shortlist file does not show this.
+
+Tick **Choose to compare** on up to four homes to see price, rooms, area, location,
+source, last sighting and link side by side. Choices stay while the page is open,
+including when you change filters, but reloading clears them. **Download shortlist**
+saves a small HTML file with only the chosen homes and the data dates; send it to anyone,
+and it opens offline in any browser. Everything shown is a historical sighting from saved
+snapshots, not current availability, so open each link to check.
+
+Under the comparison, **Your notes** has one optional box per chosen home for your own
+reasons and questions (up to 1,000 characters each). Notes are plain text, kept apart from
+the listing facts, and nothing is saved automatically: like choices, they last only while
+the page is open. **Download shortlist** writes the notes of the chosen homes into the file;
+a removed home's note is left out. Anyone who gets the file can read its notes: they show
+on each home's card, labelled as a personal note, and can be edited in the same boxes. Edits
+in a shortlist are kept only when you **Download shortlist** again.
+
+**Save this search** (under the filters) keeps the whole question for later. It
+downloads one HTML file with every home in the page (all saved homes, not only the
+matches), the saved asking prices if the page has them, the exact text in each filter,
+and the chosen homes with their notes. It works with no home chosen. Open the file in
+any browser, offline: it shows the same filters, matches, choices and notes, including a
+chosen home that the filters now hide, and you can keep refining, choosing and writing
+notes. Edits are not written into the open file. Save this search again to download a new
+file (the open one stays as it was) and open that new file to continue from it; reloading
+a saved search brings back what that file saved. Invalid filters or a note over 1,000
+characters stop the save with a message. Anyone with the file can read its notes. The
+save date is when you saved the search, not a new sighting: the homes and prices are the
+same dated data. To send only the chosen homes, use **Download shortlist** from a saved
+search; that smaller file leaves out the other homes, the filters and notes on removed
+homes. A saved search does not update itself with newer scrapes.
+
+To carry your choices into a newer page, for example after new snapshots arrived and you
+ran `browse` again, open the new page and use **Bring in choices from a file you saved
+before** under the comparison. Pick a shortlist or saved search you downloaded earlier.
+Its chosen homes and their notes are added to your choices, up to four in total; if they
+do not fit, nothing changes and the page says how many to remove first. A home that is in
+the new page's data shows the new facts, and the message lists homes whose price differs
+between the file and the page, with the data date of each. A home that is not in the new
+data stays chosen with the facts from your file, marked "Not in this page's data", and
+**Download shortlist** and **Save this search** keep it and its note. Missing does not
+mean rented: the new data simply has no sighting of it. If you already typed a note on the
+same home, it is kept and the file's note is added below it. Filters are not brought in.
+A file that is not a shortlist or saved search from this page is refused and nothing
+changes.
+
+#### Optional: saved asking prices per home
+
+```bash
+scrape browse --history-data data
+```
+
+This also reads every raw `*_details_*.csv` snapshot in `data/` and adds a
+**Saved asking prices** section to each home and to the comparison. It is optional because
+it rereads all raw files: about 10-30 seconds for the committed archive (1,930 files) and
+a page of about 6.6 MB instead of 2.6 MB. It prints progress and a summary: date coverage,
+how many homepage rows and rows without a readable price were skipped, and how many price
+changes were observed. Without the option, `scrape browse` does not read raw files.
+
+Each home lists its asking prices oldest first, grouped into runs of the same price. A
+*saved run* is one scrape file; equal prices in a row mean that price was seen at those
+times, not that it stayed the same in between. Every run names the raw file and row of its
+first and last observation, so you can check any number yourself. A change is stated only
+between two neighbouring saved prices and names both prices and dates. The rules are
+conservative:
+
+- Links are matched the same way as search (query strings and repeated slashes removed);
+  titles are never used to join homes.
+- Known homepage responses are dropped. Prices that are missing, zero or in another unit are
+  shown as gaps. A comparison across a gap says the change happened at an unknown time.
+- Two different prices in the same scrape file, or at the same moment in two files, are
+  shown as a conflict and never compared.
+- A home with one saved price says there is not enough history; a home not in the snapshots
+  says so. If the card price differs from the latest saved price, or the home was last seen
+  before the oldest or after the newest snapshot, the section says so and the card is not
+  changed.
+
+These are asking prices from saved snapshots, not prices paid, current availability or a
+market trend. **Download shortlist** keeps the history of the chosen homes only. A missing
+folder or a snapshot that cannot be read stops with the file name and leaves the previous
+page as it was.
+
+Use `--input` for another export and `--output` for another `.html` path. The default
+output folder `data/browse/` is ignored by Git. A missing or invalid export, or a folder
+you cannot write to, gives a one-line fix and exits **1**. The page is replaced only once
+it is completely written.
+
 ## Configuration
 
 Scrapers are defined in `config.yaml`. Basic structure:
+
+An optional `unsupported: <reason>` marks a scraper as unavailable. The reason must be a
+non-empty string; discovery displays it and runs stop immediately. Remove the key only
+after verifying that the scraper works again.
 
 ```yaml
 scrapers:

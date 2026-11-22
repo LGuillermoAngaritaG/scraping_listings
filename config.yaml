@@ -13,11 +13,11 @@ scrapers:
       - name: pricing
         xpath: //div[@class="property-price-tag"]//p[@class="main-price"]/text()
       - name: bedrooms
-        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][1]/span/text()
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"]/span[contains(., "Hab")]/text()
       - name: bathrooms
-        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][2]/span/text()
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"]/span[contains(., "Baño")]/text()
       - name: area
-        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"][3]/span/text()
+        xpath: //*[@id="__next"]//div[contains(@class,"property-typology")]//div[@class="typology-item-container"]/span[contains(., "m²")]/text()
       - name: location
         xpath: //*[@id="__next"]//span[contains(@class,"property-location")]/p/text()[1]
       - name: details
@@ -40,9 +40,9 @@ scrapers:
       - name: price
         xpath: (//div[@role="status"]//div[contains(@class, "font-bold") and contains(@class, "text-[24px]")])[1]/text()
       - name: area
-        xpath: /html/body/div/div[2]/div[2]/div[2]/div[3]/div[1]/text()
+        xpath: //div[@role="status"]//div[starts-with(normalize-space(text()), "Área Construida")]/text()
       - name: estrato
-        xpath: /html/body/div/div[2]/div[2]/div[2]/div[3]/div[2]/div[2]/text()
+        xpath: //div[@role="status"]//div[starts-with(normalize-space(text()), "Estrato")]/text()
       - name: main_specs
         xpath: //pt-main-specs[@element-id="mainSpecs"]/div/pt-text/text()
       - name: characteristics
@@ -50,6 +50,8 @@ scrapers:
         xpath_values: "true"
       
   - name: mercado-libre-bogota-leasing
+    # Live probe: .atelier/goal/evidence/0004-probe/metro-mercado/navigation-00.json
+    unsupported: Mercado Libre requires account verification before showing listings. Use another scraper from 'scrape --list'.
     scrapying_engine: playwright
     description: Scraping leasing properties from Mercado Libre in Bogota.
     number_of_pages: 1
@@ -76,7 +78,5 @@ scrapers:
         xpath: //*[@id="highlighted_specs_res"]/div/div[2]/span/text()
       - name: bathrooms
         xpath: //*[@id="highlighted_specs_res"]/div/div[3]/span/text()
-
-
 
 

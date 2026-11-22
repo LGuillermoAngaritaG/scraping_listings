@@ -7,6 +7,7 @@ import argparse
 import logging
 import os
 from datetime import datetime, timezone
+from urllib.parse import urljoin
 
 # Add logging configuration
 logging.basicConfig(
@@ -80,7 +81,7 @@ class Scraper:
             initial_url = scraper_input.urls[0]
             base_url = scraper_input.base_url or "/".join(initial_url.split("/")[:2])
             if "http" not in urls[0]:
-                urls = [base_url + "/" + url for url in urls]
+                urls = [urljoin(base_url, url) for url in urls]
         
         return urls
 

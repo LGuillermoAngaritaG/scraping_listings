@@ -1,0 +1,26 @@
+# Databricks bundle for the rent price project (Databricks Free Edition).
+# Deploy from this folder with: databricks bundle deploy
+bundle:
+  name: inmuebles
+
+include:
+  - resources/*.yml
+
+variables:
+  catalog:
+    description: Unity Catalog catalog. Free Edition comes with "workspace".
+    default: workspace
+  schema:
+    description: Schema for the volume, the tables and the model.
+    default: inmuebles
+  model_name:
+    description: Unity Catalog model name (catalog.schema.name).
+    default: workspace.inmuebles.rent_price_model
+  endpoint_name:
+    description: Model Serving endpoint that serves the champion model.
+    default: rent-price
+
+targets:
+  # No development mode on purpose: it would pause the schedules.
+  free:
+    default: true

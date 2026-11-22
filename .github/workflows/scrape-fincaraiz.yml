@@ -16,6 +16,11 @@ permissions:
 jobs:
   scrape:
     runs-on: ubuntu-latest
+    env:
+      # Upload steps are skipped until these secrets exist in the repository.
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_VOLUME_PATH: /Volumes/workspace/inmuebles/csv_diarios
 
     steps:
       - name: Checkout repository
@@ -55,6 +60,19 @@ jobs:
           name: fincaraiz-data-${{ github.run_number }}
           path: data/*fincaraiz*.csv
           retention-days: 30
+
+      - name: Set up Databricks CLI
+        if: always() && env.DATABRICKS_HOST != ''
+        uses: databricks/setup-cli@v1.27.0
+
+      - name: Upload new CSV files to Databricks volume
+        if: always() && env.DATABRICKS_HOST != ''
+        run: |
+          # Untracked files are the ones this run created. Only details files feed the pipeline.
+          for f in $(git ls-files --others --exclude-standard 'data/*_details_*.csv'); do
+            databricks fs cp "$f" "dbfs:${DATABRICKS_VOLUME_PATH}/$(basename "$f")" --overwrite
+          done
+        continue-on-error: true
 
       - name: Commit and push scraped data
         if: always()  # Always attempt to save results

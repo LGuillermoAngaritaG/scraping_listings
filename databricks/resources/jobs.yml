@@ -1,0 +1,80 @@
+resources:
+  jobs:
+    daily_refresh:
+      name: inmuebles-daily-refresh
+      description: Load new CSV files into bronze and rebuild silver and gold.
+      # The scrapers upload 7 files a day. One refresh a day is enough.
+      # To react to each file instead, replace the schedule with:
+      #   trigger: { file_arrival: { url: /Volumes/workspace/inmuebles/csv_diarios/ } }
+      schedule:
+        quartz_cron_expression: "0 0 7 * * ?"
+        timezone_id: America/Bogota
+      tasks:
+        - task_key: refresh_pipeline
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.listings.id}
+
+    retrain:
+      name: inmuebles-retrain
+      description: Train a challenger and promote it only if it beats the champion.
+      schedule:
+        quartz_cron_expression: "0 0 8 1 * ?"  # 1st day of each month
+        timezone_id: America/Bogota
+      environments:
+        - environment_key: ml
+          spec:
+            environment_version: "6"
+            dependencies: [lightgbm, scikit-learn, "mlflow>=3", databricks-sdk]
+      tasks:
+        - task_key: train
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/train.py
+            parameters:
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --model-name=${var.model_name}
+              - --endpoint-name=${var.endpoint_name}
+              - --experiment=${resources.experiments.rent_price.name}
+
+    monitor:
+      name: inmuebles-monitor
+      description: Weekly error check on new listings. Starts retraining above the threshold.
+      schedule:
+        quartz_cron_expression: "0 0 9 ? * MON"
+        timezone_id: America/Bogota
+      environments:
+        - environment_key: ml
+          spec:
+            environment_version: "6"
+            dependencies: [lightgbm, scikit-learn, "mlflow>=3", databricks-sdk]
+      tasks:
+        - task_key: monitor
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/monitor.py
+            parameters:
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --model-name=${var.model_name}
+              - --retrain-job-id=${resources.jobs.retrain.id}
+              # About 10 points above the 3-month backtest error (53% on Nov 2026 data).
+              - --mape-threshold=0.60
+
+    backtest:
+      name: inmuebles-backtest
+      description: Error 1, 2 and 3 months after training. Run by hand to choose the retrain frequency.
+      environments:
+        - environment_key: ml
+          spec:
+            environment_version: "6"
+            dependencies: [lightgbm, scikit-learn, "mlflow>=3", matplotlib]
+      tasks:
+        - task_key: backtest
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/backtest.py
+            parameters:
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --experiment=${resources.experiments.rent_price.name}

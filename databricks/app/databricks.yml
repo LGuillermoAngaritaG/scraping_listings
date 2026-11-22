@@ -1,0 +1,24 @@
+# Separate bundle for the Streamlit app. Deploy it after the first training run,
+# because the serving endpoint it calls is created by that run.
+bundle:
+  name: inmuebles-app
+
+variables:
+  endpoint_name:
+    default: rent-price
+
+resources:
+  apps:
+    rent_price_app:
+      name: rent-price-app
+      description: Estimate the monthly rent of a property in Bogota.
+      source_code_path: ./src
+      resources:
+        - name: serving-endpoint
+          serving_endpoint:
+            name: ${var.endpoint_name}
+            permission: CAN_QUERY
+
+targets:
+  free:
+    default: true

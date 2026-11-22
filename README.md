@@ -109,6 +109,13 @@ Two workflows run scrapers automatically:
 Scraped data is:
 - Automatically committed and pushed to the `data/` directory
 - Uploaded as artifacts (30-day retention)
+- Uploaded to a Databricks volume, when the `DATABRICKS_HOST` and `DATABRICKS_TOKEN` secrets exist
+
+## Rent Price Prediction on Databricks
+
+The scraped rentals feed a Databricks pipeline (bronze, silver, gold), a LightGBM rent model with
+champion/challenger promotion, a serving endpoint, a dashboard and a Streamlit app.
+See [databricks/README.md](databricks/README.md) for the architecture, decisions and setup.
 
 ### Manual Trigger
 
@@ -130,6 +137,7 @@ scraping_listings/
 │   ├── services/           # Config loader, data saver
 │   └── utils/              # Shadow DOM utilities
 ├── data/                   # Output CSV files
+├── databricks/             # Databricks bundle: pipeline, model jobs, app
 ├── config.yaml             # Scraper configurations
 ├── analyze_artifacts.ipynb # Data analysis notebook
 └── pyproject.toml          # Dependencies

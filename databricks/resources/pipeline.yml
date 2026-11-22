@@ -1,0 +1,14 @@
+resources:
+  pipelines:
+    listings:
+      name: inmuebles-listings
+      serverless: true
+      catalog: ${var.catalog}
+      schema: ${resources.schemas.inmuebles.name}
+      # root_path is added to sys.path, so the pipeline files can import listings.py.
+      root_path: ../src/pipeline
+      libraries:
+        - glob:
+            include: ../src/pipeline/transformations/**
+      configuration:
+        volume_path: /Volumes/${var.catalog}/${var.schema}/csv_diarios

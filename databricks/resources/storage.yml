@@ -1,0 +1,18 @@
+resources:
+  schemas:
+    inmuebles:
+      name: ${var.schema}
+      catalog_name: ${var.catalog}
+      comment: Bogota rental listings scraped from Fincaraiz and Metrocuadrado.
+
+  volumes:
+    csv_diarios:
+      name: csv_diarios
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.inmuebles.name}
+      volume_type: MANAGED
+      comment: Raw scraper CSV files uploaded by the GitHub Actions.
+
+  experiments:
+    rent_price:
+      name: /Workspace/Users/${workspace.current_user.userName}/inmuebles-rent-price

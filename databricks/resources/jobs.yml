@@ -2,17 +2,42 @@ resources:
   jobs:
     daily_refresh:
       name: inmuebles-daily-refresh
-      description: Load new CSV files into bronze and rebuild silver and gold.
+      description: Load new CSV files into bronze, rebuild silver and gold, then price active listings, flag good deals and place neighborhoods on the map.
       # The scrapers upload 7 files a day. One refresh a day is enough.
       # To react to each file instead, replace the schedule with:
       #   trigger: { file_arrival: { url: /Volumes/workspace/inmuebles/csv_diarios/ } }
       schedule:
         quartz_cron_expression: "0 0 7 * * ?"
         timezone_id: America/Bogota
+      environments:
+        - environment_key: ml
+          spec:
+            environment_version: "6"
+            dependencies: [lightgbm, scikit-learn, "mlflow>=3", databricks-sdk]
       tasks:
         - task_key: refresh_pipeline
           pipeline_task:
             pipeline_id: ${resources.pipelines.listings.id}
+        - task_key: score
+          depends_on:
+            - task_key: refresh_pipeline
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/score.py
+            parameters:
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --model-name=${var.model_name}
+        - task_key: locate
+          depends_on:
+            - task_key: refresh_pipeline
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/locate.py
+            parameters:
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --sources-dir=/Volumes/${var.catalog}/${var.schema}/reference
 
     retrain:
       name: inmuebles-retrain

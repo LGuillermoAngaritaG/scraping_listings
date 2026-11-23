@@ -9,6 +9,6 @@ STAGE="$(mktemp -d)"
 trap 'rm -rf "$STAGE"' EXIT
 
 # Only details files feed the pipeline. One recursive copy is much faster than one call per file.
-find "$REPO_ROOT/data" -name '*_details_*.csv' -exec cp {} "$STAGE"/ +
+find "$REPO_ROOT/data" -name '*_details_*.csv' -exec cp {} "$STAGE"/ \;
 echo "Uploading $(ls "$STAGE" | wc -l | tr -d ' ') files to $VOLUME_PATH"
 databricks fs cp -r "$STAGE" "dbfs:$VOLUME_PATH" --overwrite

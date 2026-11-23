@@ -6,10 +6,12 @@ Results go to the backtest_results table and to MLflow with a chart.
 """
 
 import argparse
+import inspect
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Databricks runs this file with exec(), so __file__ is not set. The code object still has the path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(inspect.currentframe().f_code.co_filename)))
 
 import matplotlib.pyplot as plt  # noqa: E402
 import mlflow  # noqa: E402

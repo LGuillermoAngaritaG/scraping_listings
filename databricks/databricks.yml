@@ -19,6 +19,10 @@ variables:
   endpoint_name:
     description: Model Serving endpoint that serves the champion model.
     default: rent-price
+  warehouse_id:
+    description: SQL warehouse that runs the dashboard queries.
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 targets:
   # No development mode on purpose: it would pause the schedules.

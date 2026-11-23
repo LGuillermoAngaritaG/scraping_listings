@@ -6,6 +6,13 @@ bundle:
 variables:
   endpoint_name:
     default: rent-price
+  listings_table:
+    default: workspace.inmuebles.gold_rent_listings
+  predictions_table:
+    default: workspace.inmuebles.rent_predictions
+  warehouse_id:
+    lookup:
+      warehouse: Serverless Starter Warehouse
 
 resources:
   apps:
@@ -18,6 +25,22 @@ resources:
           serving_endpoint:
             name: ${var.endpoint_name}
             permission: CAN_QUERY
+        # Read access for the neighborhood list, the estratos and the similar listings.
+        - name: sql-warehouse
+          sql_warehouse:
+            id: ${var.warehouse_id}
+            permission: CAN_USE
+        - name: listings-table
+          uc_securable:
+            securable_full_name: ${var.listings_table}
+            securable_type: TABLE
+            permission: SELECT
+        # The daily good-deal flags for the similar listings.
+        - name: predictions-table
+          uc_securable:
+            securable_full_name: ${var.predictions_table}
+            securable_type: TABLE
+            permission: SELECT
 
 targets:
   free:

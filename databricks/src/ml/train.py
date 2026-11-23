@@ -7,21 +7,32 @@ Runs as a Databricks job task (spark_python_task). Steps:
 4. Register the challenger with alias "retador". Move "campeon" to it only if it
    beats the baseline and the champion (lower MAPE).
 5. Point the serving endpoint at the new champion.
+
+The registered model returns a price and a likely range (low, high). The range
+comes from the challenger's errors on the test rows, per property type.
 """
 
 import argparse
+import inspect
 import os
 import sys
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Databricks runs this file with exec(), so __file__ is not set. The code object still has the path.
+HERE = os.path.dirname(os.path.abspath(inspect.currentframe().f_code.co_filename))
+sys.path.insert(0, HERE)
 
+import lightgbm  # noqa: E402
 import mlflow  # noqa: E402
+import numpy as np  # noqa: E402
+import pandas as pd  # noqa: E402
+import sklearn  # noqa: E402
 from databricks.sdk import WorkspaceClient  # noqa: E402
 from databricks.sdk.service.serving import EndpointCoreConfigInput, ServedEntityInput  # noqa: E402
 from mlflow import MlflowClient  # noqa: E402
 from mlflow.exceptions import MlflowException  # noqa: E402
 from pyspark.sql import SparkSession  # noqa: E402
 
+from banded_model import BandedRentModel  # noqa: E402
 from rent_model import (  # noqa: E402
     CHALLENGER,
     CHAMPION,
@@ -29,11 +40,22 @@ from rent_model import (  # noqa: E402
     TARGET,
     baseline_predict,
     build_model,
+    error_bands,
     metrics,
     metrics_by,
+    point_estimate,
     prepare,
     temporal_split,
 )
+
+# Pinned to the training environment so serving unpickles the same objects.
+PIP_REQUIREMENTS = [
+    f"mlflow=={mlflow.__version__}",
+    f"lightgbm=={lightgbm.__version__}",
+    f"scikit-learn=={sklearn.__version__}",
+    f"pandas=={pd.__version__}",
+    f"numpy=={np.__version__}",
+]
 
 
 def parse_args():
@@ -72,7 +94,7 @@ def champion_predictions(client: MlflowClient, model_name: str, test):
     except MlflowException:
         return None, None
     model = mlflow.pyfunc.load_model(f"models:/{model_name}@{CHAMPION}")
-    return model.predict(test[FEATURES]), version.version
+    return point_estimate(model.predict(test[FEATURES])), version.version
 
 
 def deploy_endpoint(endpoint_name: str, model_name: str, version: str):
@@ -125,16 +147,20 @@ def main():
         mlflow.log_metrics({f"challenger_{k}": v for k, v in challenger.items()})
         mlflow.log_table(metrics_by(test, prediction, "property_type"), "metrics_by_type.json")
         mlflow.log_table(metrics_by(test, prediction, "neighborhood"), "metrics_by_zone.json")
+        bands, default_band = error_bands(test, prediction)
+        mlflow.log_dict({"by_type": bands, "default": default_band}, "error_bands.json")
 
         champion_pred, champion_version = champion_predictions(client, args.model_name, test)
         champion = metrics(test[TARGET], champion_pred) if champion_pred is not None else None
         if champion:
             mlflow.log_metrics({f"champion_{k}": v for k, v in champion.items()})
 
-        info = mlflow.sklearn.log_model(
-            sk_model=model,
+        info = mlflow.pyfunc.log_model(
             name="model",
+            python_model=BandedRentModel(model, FEATURES, bands, default_band),
+            code_paths=[os.path.join(HERE, "banded_model.py")],
             input_example=train[FEATURES].head(5),
+            pip_requirements=PIP_REQUIREMENTS,
             registered_model_name=args.model_name,
         )
         new_version = info.registered_model_version

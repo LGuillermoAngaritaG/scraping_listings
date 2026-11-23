@@ -85,6 +85,48 @@ def metrics(y_true, y_pred) -> dict:
     }
 
 
+def error_bands(test: pd.DataFrame, prediction, low: float = 0.1, high: float = 0.9, min_rows: int = 50):
+    """How far real prices fall from the prediction, as ratios, per property type.
+
+    Returns ({type: (low_ratio, high_ratio)}, default). With the default quantiles,
+    8 in 10 prices of the test listings were between prediction * low_ratio and
+    prediction * high_ratio. Types with fewer than `min_rows` test rows use the
+    ratios of all rows (the default).
+    """
+    log_ratio = np.log(test[TARGET].to_numpy(dtype=float) / np.asarray(prediction, dtype=float))
+    frame = pd.DataFrame({"property_type": test["property_type"].to_numpy(), "r": log_ratio})
+
+    def ratios(values):
+        return tuple(float(x) for x in np.exp(np.quantile(values, [low, high])))
+
+    bands = {
+        name: ratios(group["r"])
+        for name, group in frame.groupby("property_type")
+        if len(group) >= min_rows
+    }
+    return bands, ratios(frame["r"])
+
+
+def point_estimate(output) -> np.ndarray:
+    """Prediction from a loaded model: a table with prediction/low/high, or a plain array
+    for model versions registered before the range was added."""
+    if isinstance(output, pd.DataFrame):
+        return output["prediction"].to_numpy()
+    return np.asarray(output)
+
+
+def good_deals(listings: pd.DataFrame, price, low) -> np.ndarray:
+    """True where the asking price is below the low end of the listing's likely range.
+
+    The low end comes from error_bands (10th percentile), so with an unbiased model
+    about 1 in 10 listings is a good deal. A missing low end is never a deal. Nor is a
+    listing with no size (no area and no bedrooms, common for offices): the model
+    cannot tell a small one from a large one, so a small one would look cheap.
+    """
+    size_known = (listings["area_m2"].notna() | listings["bedrooms"].notna()).to_numpy()
+    return size_known & (np.asarray(price, dtype=float) < np.asarray(low, dtype=float))
+
+
 def metrics_by(test: pd.DataFrame, y_pred, column: str, min_rows: int = 20) -> pd.DataFrame:
     """MAE and MAPE per group (property type or neighborhood) with enough rows."""
     frame = test[[column, TARGET]].assign(prediction=np.asarray(y_pred))

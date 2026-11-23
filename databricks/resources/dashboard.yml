@@ -1,0 +1,9 @@
+resources:
+  dashboards:
+    rent_eda:
+      display_name: Bogota rent listings
+      file_path: ../dashboard/rent_eda.lvdash.json
+      warehouse_id: ${var.warehouse_id}
+      # The dashboard queries use bare table names; these fill in the catalog and schema.
+      dataset_catalog: ${var.catalog}
+      dataset_schema: ${var.schema}

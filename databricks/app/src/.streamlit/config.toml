@@ -1,0 +1,18 @@
+# Same palette as the dashboard: warm neutral surfaces, one blue accent.
+[theme]
+base = "light"
+primaryColor = "#2a78d6"
+backgroundColor = "#f4f3ef"
+secondaryBackgroundColor = "#ecebe6"
+textColor = "#161615"
+linkColor = "#1c5cab"
+borderColor = "#e2e0d9"
+showWidgetBorder = false
+baseRadius = "0.75rem"
+font = "Inter:https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap, sans-serif"
+headingFontWeights = [800, 700, 700, 650, 600, 600]
+metricValueFontWeight = 700
+chartCategoricalColors = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#6250d6", "#e34948"]
+
+[client]
+toolbarMode = "minimal"

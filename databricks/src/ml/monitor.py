@@ -3,16 +3,19 @@
 Runs as a Databricks job task (spark_python_task). Steps:
 1. Predict the price of listings first seen in the last `window-days`.
 2. Append the error to the monitoring table.
-3. Score all active listings into the predictions table (used by the dashboard).
-4. If the error is above the threshold, start the retraining job.
+3. If the error is above the threshold, start the retraining job.
+
+Pricing all active listings (rent_predictions) is done daily by score.py.
 """
 
 import argparse
+import inspect
 import os
 import sys
 from datetime import datetime, timezone
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# Databricks runs this file with exec(), so __file__ is not set. The code object still has the path.
+sys.path.insert(0, os.path.dirname(os.path.abspath(inspect.currentframe().f_code.co_filename)))
 
 import mlflow  # noqa: E402
 import pandas as pd  # noqa: E402
@@ -20,7 +23,15 @@ from databricks.sdk import WorkspaceClient  # noqa: E402
 from mlflow import MlflowClient  # noqa: E402
 from pyspark.sql import SparkSession  # noqa: E402
 
-from rent_model import CHAMPION, DATE, FEATURES, TARGET, metrics, prepare  # noqa: E402
+from rent_model import (  # noqa: E402
+    CHAMPION,
+    DATE,
+    FEATURES,
+    TARGET,
+    metrics,
+    point_estimate,
+    prepare,
+)
 
 
 def parse_args():
@@ -42,14 +53,17 @@ def main():
 
     champion = MlflowClient().get_model_version_by_alias(args.model_name, CHAMPION)
     model = mlflow.pyfunc.load_model(f"models:/{args.model_name}@{CHAMPION}")
-    train_cutoff = champion.tags.get("train_cutoff")
 
     df = prepare(spark.read.table(f"{prefix}.gold_rent_listings").toPandas())
     latest = df[DATE].max()
 
     # New listings: the champion never saw them, because they appeared after training.
     new = df[df[DATE] > latest - pd.Timedelta(days=args.window_days)]
-    scores = metrics(new[TARGET], model.predict(new[FEATURES])) if len(new) else {"rows": 0}
+    scores = (
+        metrics(new[TARGET], point_estimate(model.predict(new[FEATURES])))
+        if len(new)
+        else {"rows": 0}
+    )
     retrain = scores["rows"] >= args.min_rows and scores["mape"] > args.mape_threshold
 
     check = pd.DataFrame(
@@ -67,22 +81,6 @@ def main():
         ]
     )
     spark.createDataFrame(check).write.mode("append").saveAsTable(f"{prefix}.model_monitoring")
-
-    # Active listings with their estimated price, for "over / under priced" views.
-    active = df[df["last_seen_date"] > latest - pd.Timedelta(days=7)].copy()
-    active["predicted_price_cop"] = model.predict(active[FEATURES]).round()
-    active["price_gap_pct"] = active["last_price_cop"] / active["predicted_price_cop"] - 1
-    active["model_version"] = int(champion.version)
-    active["train_cutoff"] = pd.to_datetime(train_cutoff) if train_cutoff else pd.NaT
-    columns = ["source", "property_id", "url", "first_seen_date", "last_seen_date"]
-    columns += FEATURES + ["last_price_cop", "predicted_price_cop", "price_gap_pct"]
-    columns += ["model_version", "train_cutoff"]
-    (
-        spark.createDataFrame(active[columns])
-        .write.mode("overwrite")
-        .option("overwriteSchema", "true")
-        .saveAsTable(f"{prefix}.rent_predictions")
-    )
 
     print(f"champion v{champion.version}: {scores}, threshold {args.mape_threshold}")
     if retrain:

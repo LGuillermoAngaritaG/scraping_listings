@@ -15,8 +15,14 @@ flowchart LR
   E --> A[Streamlit app]
   G --> MON["monitor job<br/>weekly"]
   MON -->|error above threshold| T
-  MON --> P[rent_predictions]
+  G --> SC["score task<br/>daily"]
+  M --> SC
+  SC --> P["rent_predictions<br/>good deals"]
   P --> D[AI/BI dashboard]
+  P --> A
+  G --> LOC["locate task<br/>daily"]
+  LOC --> NL["neighborhood_locations<br/>barrio_shapes"]
+  NL --> D
   G --> GN[Genie space]
 ```
 
@@ -24,15 +30,19 @@ flowchart LR
 
 | Path | What it does |
 |---|---|
-| `databricks.yml`, `resources/` | Bundle: schema, volume, MLflow experiment, pipeline, 4 jobs |
+| `databricks.yml`, `resources/` | Bundle: schema, 2 volumes, MLflow experiment, pipeline, 4 jobs |
 | `src/pipeline/listings.py` | All parsing and cleaning logic (plain PySpark, no UDFs) |
 | `src/pipeline/transformations/` | Lakeflow pipeline: bronze (Auto Loader), silver, gold |
-| `src/ml/rent_model.py` | Features, LightGBM model, baseline, metrics, backtest |
+| `src/ml/rent_model.py` | Features, LightGBM model, baseline, metrics, price range, backtest |
+| `src/ml/banded_model.py` | The registered model: returns prediction, low and high |
 | `src/ml/train.py` | Retrain job: challenger vs champion, promotion, serving endpoint |
-| `src/ml/monitor.py` | Weekly error check, predictions table, starts retraining |
+| `src/ml/monitor.py` | Weekly error check, starts retraining |
+| `src/ml/score.py` | Daily: prices active listings, flags good deals (rent_predictions) |
+| `src/ml/locate.py` | Daily: matches neighborhood names to official barrios and their outlines (neighborhood_locations, barrio_shapes) |
 | `src/ml/backtest.py` | Error 1, 2 and 3 months after training |
 | `app/` | Separate bundle for the Streamlit app |
-| `dashboard/queries.sql` | Datasets for the AI/BI dashboard |
+| `dashboard/rent_eda.lvdash.json` | EDA dashboard, deployed with the bundle |
+| `dashboard/queries.sql` | Extra model-monitoring queries to add to a dashboard by hand |
 | `scripts/backfill.sh` | One-time upload of the CSV history in git |
 | `tests/` | Local tests on the real CSV files |
 
@@ -53,6 +63,7 @@ flowchart LR
 | Data version | Training copies gold into `rent_training_data` and logs its Delta version | Materialized views have no time travel |
 | Daily trigger | Daily schedule | File arrival triggers are not confirmed on Free Edition. The swap is one line in `resources/jobs.yml` |
 | Retraining | Monthly, plus weekly monitor that starts it when MAPE > 60% | The local backtest shows error grows slowly (48% to 53% in 3 months). Lower the threshold once area data is back |
+| Price range | The model returns low, prediction and high. Low and high come from the 10th and 90th percentile of real price / predicted price on the test month, per property type | Simple and checked on held-out data: about 3 in 4 prices of the next month fall inside. Two extra quantile models gave the same coverage with more to train and serve |
 | Serving | Endpoint created or updated from the training job | The endpoint needs a model version, which exists only after training |
 | App | Own bundle, deployed after the first training | Its endpoint must exist at deploy time |
 
@@ -74,6 +85,14 @@ flowchart LR
    ```bash
    scripts/backfill.sh
    ```
+   Then the public map data for the neighborhood map. The listings only have a neighborhood name; the daily `locate` task matches it to Bogota's cadastral sectors (barrios, open data, CC BY 4.0) and to OpenStreetMap neighbourhood names (ODbL), which include many market names. Refresh these two files once a year:
+   ```bash
+   curl -L -o sector.zip "https://datosabiertos.bogota.gov.co/dataset/6f5031cf-07d0-42c3-ba5c-4436eba0a2d9/resource/428a5f4e-b9d4-4d91-88a7-28fb404a08ab/download/sector.geojson.10.26.zip" && unzip -o sector.zip
+   curl -o osm_places.json --data-urlencode 'data=[out:json][timeout:90];(node["place"~"^(neighbourhood|suburb|quarter)$"](4.45,-74.25,4.85,-73.98);way["place"~"^(neighbourhood|suburb|quarter)$"](4.45,-74.25,4.85,-73.98);relation["place"~"^(neighbourhood|suburb|quarter)$"](4.45,-74.25,4.85,-73.98););out center tags;' https://maps.mail.ru/osm/tools/overpass/api/interpreter
+   databricks fs cp SECTOR.geojson dbfs:/Volumes/workspace/inmuebles/reference/ --overwrite
+   databricks fs cp osm_places.json dbfs:/Volumes/workspace/inmuebles/reference/ --overwrite
+   ```
+   The sector file name has a version (`10.26`); take the newest link from the dataset page. Any Overpass server works; the main one was not reachable from here.
 5. Create a personal access token (Settings > Developer). Add two repository secrets in GitHub: `DATABRICKS_HOST` and `DATABRICKS_TOKEN`. From then on, each scraper run uploads its new file.
 6. Build the tables, train the first model and run the backtest:
    ```bash
@@ -89,7 +108,10 @@ flowchart LR
    ```bash
    cd app && databricks bundle deploy && databricks bundle run rent_price_app
    ```
-8. In the UI: build the dashboard from `dashboard/queries.sql`, and create a Genie space on `gold_rent_listings` and `rent_predictions`. Example questions: "median rent of apartments in Chico by month", "which neighborhoods are most expensive per m²".
+   The first time you open the app, Databricks asks you to authorize it.
+   The app asks for property type, barrio (searchable), estrato, bedrooms, bathrooms and parking. Area and building age are optional. The estrato list shows only the estratos found in that barrio's listings. It shows the estimate, a strip chart with the likely range and the prices of similar listings, then up to 5 similar listings from the same barrio as cards. A card shows "Good deal" when the daily scoring flagged that listing. The look (colors, Inter font) is set in `app/src/.streamlit/config.toml`; the font loads from Google Fonts in the viewer's browser. It reads the gold and predictions tables through the SQL warehouse; the bundle gives it read access.
+8. The EDA dashboard "Bogota rent listings" is deployed with the bundle in step 3 and shows data once the pipeline has run (Dashboards in the sidebar). It has filters for property type (apartments by default), neighborhood, estrato, bedrooms, bathrooms and parking, plus a "Last seen" date range and a "Good deals" filter (pick "Good deals only"); KPIs; sections for prices, where and what (a map that fills each official barrio by its median rent, 8 million or more in the darkest red, a neighborhood table, a median-rent heatmap by estrato and bedrooms, listings by type), and a table of listings with first and last seen dates and a Deal column. Hover a Deal cell to read what a good deal is. Colors and font are set in the file's `uiSettings.theme`.
+9. In the UI: create a Genie space on `gold_rent_listings` and `rent_predictions`. Example questions: "median rent of apartments in Chico by month", "which neighborhoods are most expensive per m²".
 
 ## How to check each phase
 
@@ -132,4 +154,5 @@ cd databricks && uv sync && uv run pytest -s
 - Apps stop 24 hours after start or redeploy. Start it again before a demo: `databricks bundle run rent_price_app`.
 - Over the daily quota, compute stops until the next day. Data is kept.
 - Free Edition is for non-commercial use only.
+- The map places about 3 in 4 listings. The rest have a barrio name that is in neither map source (for example "chico reservado") or no name. A market name ("chico navarra") is drawn as the official barrio its OpenStreetMap point falls in, so the map shows where rents are high, not exact addresses.
 - `databricks bundle destroy` deletes the schema with all tables and the volume.

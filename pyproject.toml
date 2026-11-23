@@ -29,6 +29,7 @@ dev = [
 
 [project.scripts]
 scrape = "app.main:main"
+scrape-vehicles = "app.vehicles.cli:main"
 
 
 [build-system]

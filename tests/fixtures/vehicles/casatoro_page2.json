@@ -1,0 +1,66 @@
+{
+ "pageProps": {
+  "vehicles": [
+   {
+    "slug": "ford-edge-ride-tp-2000cc-t-ct-7494",
+    "id": 7494,
+    "name": "FORD EDGE RIDE TP 2000CC T CT",
+    "brand": "FORD",
+    "line": "EDGE",
+    "version": "RIDE TP 2000CC T CT",
+    "year": 2021,
+    "price": 87900000,
+    "oldPrice": 0,
+    "mileage": 53894,
+    "transmission": "Automática",
+    "type": "Camioneta",
+    "fuel": "GASOLINA",
+    "locationName": "CasaToro Usados Chía"
+   }
+  ],
+  "total": 3,
+  "page": 2,
+  "totalPages": 2,
+  "options": {
+   "locations": [
+    {
+     "label": "Bellpi y Premium 170, BOGOTÁ. DC. - BOGOTÁ. D.C",
+     "value": "70"
+    },
+    {
+     "label": "CasaToro Usados Av. 68, Bogota D.C.",
+     "value": "4"
+    },
+    {
+     "label": "CasaToro Usados Av. Cali, Bogota D.C.",
+     "value": "8"
+    },
+    {
+     "label": "CasaToro Usados Chía, Chía",
+     "value": "7"
+    },
+    {
+     "label": "CasaToro Usados Premium  Cll. 170, Bogota D.C.",
+     "value": "62"
+    },
+    {
+     "label": "CasaToro Usados Premium Cll 183, Bogota D.C.",
+     "value": "41"
+    },
+    {
+     "label": "CasaToro Usados Puente Aranda, Bogota D.C.",
+     "value": "9"
+    },
+    {
+     "label": "Cda, FUNZA - CUNDINAMARCA",
+     "value": "65"
+    },
+    {
+     "label": "VO-Bogotá-Bl Puente Aranda, BOGOTÁ. DC. - BOGOTÁ. D.C",
+     "value": "71"
+    }
+   ]
+  }
+ },
+ "__N_SSP": true
+}

@@ -1,0 +1,857 @@
+[
+ {
+  "id": 306285,
+  "name": "CITROEN &#8211; NEW C4 CACTUS FEEL 1.6 AUT &#8211; 2023",
+  "slug": "citroen-new-c4-cactus-feel-1-6-aut-2023-4",
+  "permalink": "https://autonal.com/carros-usados/venta/citroen/citroen-new-c4-cactus-feel-1-6-aut-2023-4/",
+  "sku": "2023-TST123",
+  "prices": {
+   "price": "59400000",
+   "currency_code": "COP"
+  },
+  "categories": [
+   {
+    "id": 59,
+    "name": "Usados",
+    "slug": "usados",
+    "link": "https://autonal.com/categoria-producto/usados/"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 13,
+    "name": "Placa",
+    "taxonomy": "pa_placa",
+    "terms": [
+     {
+      "id": 47686,
+      "name": "7",
+      "slug": "7"
+     }
+    ]
+   },
+   {
+    "id": 44,
+    "name": "VIN",
+    "taxonomy": "pa_vin",
+    "terms": [
+     {
+      "id": 1,
+      "name": "TESTVIN0000000001",
+      "slug": "testvin0000000001"
+     }
+    ]
+   },
+   {
+    "id": 1,
+    "name": "Marca",
+    "taxonomy": "pa_marca",
+    "terms": [
+     {
+      "id": 98515,
+      "name": "CITROEN",
+      "slug": "citroen"
+     }
+    ]
+   },
+   {
+    "id": 2,
+    "name": "Línea",
+    "taxonomy": "pa_linea",
+    "terms": [
+     {
+      "id": 99166,
+      "name": "NEW C4 CACTUS FEEL 1.6 AUT",
+      "slug": "new-c4-cactus-feel-1-6-aut"
+     }
+    ]
+   },
+   {
+    "id": 9,
+    "name": "Versión",
+    "taxonomy": "pa_version",
+    "terms": [
+     {
+      "id": 99167,
+      "name": "CACTUS FEEL 1.6 AUT",
+      "slug": "cactus-feel-1-6-aut"
+     }
+    ]
+   },
+   {
+    "id": 3,
+    "name": "Año",
+    "taxonomy": "pa_ano",
+    "terms": [
+     {
+      "id": 24141,
+      "name": "2023",
+      "slug": "2023"
+     }
+    ]
+   },
+   {
+    "id": 45,
+    "name": "Descripción",
+    "taxonomy": "pa_descripcion",
+    "terms": [
+     {
+      "id": 99168,
+      "name": "2023 CITROEN NEW C4 CACTUS FEEL 1.6 AUT CACTUS FEEL 1.6 AUT",
+      "slug": "2023-citroen-new-c4-cactus-feel-1-6-aut-cactus-feel-1-6-aut"
+     }
+    ]
+   },
+   {
+    "id": 46,
+    "name": "Pasajeros",
+    "taxonomy": "pa_pasajeros",
+    "terms": [
+     {
+      "id": 75858,
+      "name": "5",
+      "slug": "5"
+     }
+    ]
+   },
+   {
+    "id": 39,
+    "name": "Cilindraje",
+    "taxonomy": "pa_cilindraje",
+    "terms": [
+     {
+      "id": 98519,
+      "name": "1587",
+      "slug": "1587"
+     }
+    ]
+   },
+   {
+    "id": 47,
+    "name": "Días",
+    "taxonomy": "pa_dias",
+    "terms": [
+     {
+      "id": 75892,
+      "name": "4",
+      "slug": "4"
+     }
+    ]
+   },
+   {
+    "id": 43,
+    "name": "Puertas",
+    "taxonomy": "pa_puertas",
+    "terms": [
+     {
+      "id": 65453,
+      "name": "5",
+      "slug": "5"
+     }
+    ]
+   },
+   {
+    "id": 37,
+    "name": "Tipo de combustible",
+    "taxonomy": "pa_tipo-de-combustible",
+    "terms": [
+     {
+      "id": 76177,
+      "name": "Gasolina",
+      "slug": "gasolina"
+     }
+    ]
+   },
+   {
+    "id": 10,
+    "name": "Color",
+    "taxonomy": "pa_color",
+    "terms": [
+     {
+      "id": 105871,
+      "name": "BLANCO NACAR",
+      "slug": "blanco-nacar"
+     }
+    ]
+   },
+   {
+    "id": 5,
+    "name": "Kilometraje",
+    "taxonomy": "pa_kilometraje",
+    "terms": [
+     {
+      "id": 128754,
+      "name": "43279",
+      "slug": "43279"
+     }
+    ]
+   },
+   {
+    "id": 49,
+    "name": "Valor",
+    "taxonomy": "pa_valor",
+    "terms": [
+     {
+      "id": 108776,
+      "name": "59400000",
+      "slug": "59400000"
+     }
+    ]
+   },
+   {
+    "id": 11,
+    "name": "Precio de venta",
+    "taxonomy": "pa_precio-de-venta",
+    "terms": [
+     {
+      "id": 108777,
+      "name": "59400000",
+      "slug": "59400000"
+     }
+    ]
+   },
+   {
+    "id": 52,
+    "name": "Bodega",
+    "taxonomy": "pa_bodega",
+    "terms": [
+     {
+      "id": 75867,
+      "name": "15040_USADOS COMERCIAL BOGOTA 128",
+      "slug": "15040_usados-comercial-bogota-128"
+     }
+    ]
+   },
+   {
+    "id": 4,
+    "name": "Ubicación",
+    "taxonomy": "pa_ubicacion",
+    "terms": [
+     {
+      "id": 43874,
+      "name": "BOGOTA - LA FELICIDAD",
+      "slug": "bogota-la-felicidad"
+     }
+    ]
+   },
+   {
+    "id": 42,
+    "name": "Clase",
+    "taxonomy": "pa_clase",
+    "terms": [
+     {
+      "id": 81466,
+      "name": "Camioneta",
+      "slug": "camioneta"
+     }
+    ]
+   },
+   {
+    "id": 35,
+    "name": "Outlet",
+    "taxonomy": "pa_outlet",
+    "terms": [
+     {
+      "id": 52197,
+      "name": "NO",
+      "slug": "no"
+     }
+    ]
+   },
+   {
+    "id": 15,
+    "name": "Transmisión",
+    "taxonomy": "pa_transmision",
+    "terms": [
+     {
+      "id": 125471,
+      "name": "Automática",
+      "slug": "automatica"
+     }
+    ]
+   },
+   {
+    "id": 53,
+    "name": "Tracción",
+    "taxonomy": "pa_traccion",
+    "terms": [
+     {
+      "id": 126992,
+      "name": "4X2",
+      "slug": "4x2"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 306166,
+  "name": "SUZUKI &#8211; NEW SWIFT MHEV 1.2 5P &#8211; 2023",
+  "slug": "suzuki-new-swift-mhev-1-2-5p-2023-12",
+  "permalink": "https://autonal.com/carros-usados/venta/suzuki/suzuki-new-swift-mhev-1-2-5p-2023-12/",
+  "sku": "2023-TST123",
+  "prices": {
+   "price": "58700000",
+   "currency_code": "COP"
+  },
+  "categories": [
+   {
+    "id": 59,
+    "name": "Usados",
+    "slug": "usados",
+    "link": "https://autonal.com/categoria-producto/usados/"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 13,
+    "name": "Placa",
+    "taxonomy": "pa_placa",
+    "terms": [
+     {
+      "id": 48533,
+      "name": "Ø",
+      "slug": "o"
+     }
+    ]
+   },
+   {
+    "id": 44,
+    "name": "VIN",
+    "taxonomy": "pa_vin",
+    "terms": [
+     {
+      "id": 1,
+      "name": "TESTVIN0000000001",
+      "slug": "testvin0000000001"
+     }
+    ]
+   },
+   {
+    "id": 1,
+    "name": "Marca",
+    "taxonomy": "pa_marca",
+    "terms": [
+     {
+      "id": 1069,
+      "name": "SUZUKI",
+      "slug": "suzuki"
+     }
+    ]
+   },
+   {
+    "id": 2,
+    "name": "Línea",
+    "taxonomy": "pa_linea",
+    "terms": [
+     {
+      "id": 102353,
+      "name": "NEW SWIFT MHEV 1.2 5P",
+      "slug": "new-swift-mhev-1-2-5p"
+     }
+    ]
+   },
+   {
+    "id": 9,
+    "name": "Versión",
+    "taxonomy": "pa_version",
+    "terms": [
+     {
+      "id": 102354,
+      "name": "MHEV 1.2 5P",
+      "slug": "mhev-1-2-5p"
+     }
+    ]
+   },
+   {
+    "id": 3,
+    "name": "Año",
+    "taxonomy": "pa_ano",
+    "terms": [
+     {
+      "id": 24141,
+      "name": "2023",
+      "slug": "2023"
+     }
+    ]
+   },
+   {
+    "id": 45,
+    "name": "Descripción",
+    "taxonomy": "pa_descripcion",
+    "terms": [
+     {
+      "id": 113511,
+      "name": "2023 SUZUKI NEW SWIFT MHEV 1.2 5P MHEV 1.2 5P",
+      "slug": "2023-suzuki-new-swift-mhev-1-2-5p-mhev-1-2-5p"
+     }
+    ]
+   },
+   {
+    "id": 46,
+    "name": "Pasajeros",
+    "taxonomy": "pa_pasajeros",
+    "terms": [
+     {
+      "id": 75858,
+      "name": "5",
+      "slug": "5"
+     }
+    ]
+   },
+   {
+    "id": 39,
+    "name": "Cilindraje",
+    "taxonomy": "pa_cilindraje",
+    "terms": [
+     {
+      "id": 75747,
+      "name": "1200",
+      "slug": "1200"
+     }
+    ]
+   },
+   {
+    "id": 47,
+    "name": "Días",
+    "taxonomy": "pa_dias",
+    "terms": [
+     {
+      "id": 75914,
+      "name": "7",
+      "slug": "7"
+     }
+    ]
+   },
+   {
+    "id": 43,
+    "name": "Puertas",
+    "taxonomy": "pa_puertas",
+    "terms": [
+     {
+      "id": 65453,
+      "name": "5",
+      "slug": "5"
+     }
+    ]
+   },
+   {
+    "id": 37,
+    "name": "Tipo de combustible",
+    "taxonomy": "pa_tipo-de-combustible",
+    "terms": [
+     {
+      "id": 76178,
+      "name": "Hibrido",
+      "slug": "hibrido"
+     }
+    ]
+   },
+   {
+    "id": 10,
+    "name": "Color",
+    "taxonomy": "pa_color",
+    "terms": [
+     {
+      "id": 113512,
+      "name": "PLATA PREMIUM",
+      "slug": "plata-premium"
+     }
+    ]
+   },
+   {
+    "id": 5,
+    "name": "Kilometraje",
+    "taxonomy": "pa_kilometraje",
+    "terms": [
+     {
+      "id": 128719,
+      "name": "50998",
+      "slug": "50998"
+     }
+    ]
+   },
+   {
+    "id": 49,
+    "name": "Valor",
+    "taxonomy": "pa_valor",
+    "terms": [
+     {
+      "id": 128667,
+      "name": "58700000",
+      "slug": "58700000"
+     }
+    ]
+   },
+   {
+    "id": 11,
+    "name": "Precio de venta",
+    "taxonomy": "pa_precio-de-venta",
+    "terms": [
+     {
+      "id": 128668,
+      "name": "58700000",
+      "slug": "58700000"
+     }
+    ]
+   },
+   {
+    "id": 52,
+    "name": "Bodega",
+    "taxonomy": "pa_bodega",
+    "terms": [
+     {
+      "id": 75867,
+      "name": "15040_USADOS COMERCIAL BOGOTA 128",
+      "slug": "15040_usados-comercial-bogota-128"
+     }
+    ]
+   },
+   {
+    "id": 4,
+    "name": "Ubicación",
+    "taxonomy": "pa_ubicacion",
+    "terms": [
+     {
+      "id": 43881,
+      "name": "BOGOTA - CALLE 128",
+      "slug": "bogota-calle-128"
+     }
+    ]
+   },
+   {
+    "id": 42,
+    "name": "Clase",
+    "taxonomy": "pa_clase",
+    "terms": [
+     {
+      "id": 81467,
+      "name": "Automóvil",
+      "slug": "automovil"
+     }
+    ]
+   },
+   {
+    "id": 35,
+    "name": "Outlet",
+    "taxonomy": "pa_outlet",
+    "terms": [
+     {
+      "id": 52197,
+      "name": "NO",
+      "slug": "no"
+     }
+    ]
+   },
+   {
+    "id": 15,
+    "name": "Transmisión",
+    "taxonomy": "pa_transmision",
+    "terms": [
+     {
+      "id": 126991,
+      "name": "Mecánica",
+      "slug": "mecanica"
+     }
+    ]
+   },
+   {
+    "id": 53,
+    "name": "Tracción",
+    "taxonomy": "pa_traccion",
+    "terms": [
+     {
+      "id": 126992,
+      "name": "4X2",
+      "slug": "4x2"
+     }
+    ]
+   }
+  ]
+ },
+ {
+  "id": 306061,
+  "name": "SUZUKI &#8211; GRAND VITARA GLX 1.5 4X4 AUT MHEV &#8211; 2026",
+  "slug": "suzuki-grand-vitara-glx-1-5-4x4-aut-mhev-2026-3",
+  "permalink": "https://autonal.com/carros-usados/venta/suzuki/suzuki-grand-vitara-glx-1-5-4x4-aut-mhev-2026-3/",
+  "sku": "2026-TST123",
+  "prices": {
+   "price": "114800000",
+   "currency_code": "COP"
+  },
+  "categories": [
+   {
+    "id": 59,
+    "name": "Usados",
+    "slug": "usados",
+    "link": "https://autonal.com/categoria-producto/usados/"
+   }
+  ],
+  "attributes": [
+   {
+    "id": 13,
+    "name": "Placa",
+    "taxonomy": "pa_placa",
+    "terms": [
+     {
+      "id": 47691,
+      "name": "1",
+      "slug": "1"
+     }
+    ]
+   },
+   {
+    "id": 44,
+    "name": "VIN",
+    "taxonomy": "pa_vin",
+    "terms": [
+     {
+      "id": 1,
+      "name": "TESTVIN0000000001",
+      "slug": "testvin0000000001"
+     }
+    ]
+   },
+   {
+    "id": 1,
+    "name": "Marca",
+    "taxonomy": "pa_marca",
+    "terms": [
+     {
+      "id": 1069,
+      "name": "SUZUKI",
+      "slug": "suzuki"
+     }
+    ]
+   },
+   {
+    "id": 2,
+    "name": "Línea",
+    "taxonomy": "pa_linea",
+    "terms": [
+     {
+      "id": 124187,
+      "name": "GRAND VITARA GLX 1.5 4X4 AUT MHEV",
+      "slug": "grand-vitara-glx-1-5-4x4-aut-mhev"
+     }
+    ]
+   },
+   {
+    "id": 9,
+    "name": "Versión",
+    "taxonomy": "pa_version",
+    "terms": [
+     {
+      "id": 124188,
+      "name": "VITARA GLX 1.5 4X4 AUT MHEV",
+      "slug": "vitara-glx-1-5-4x4-aut-mhev"
+     }
+    ]
+   },
+   {
+    "id": 3,
+    "name": "Año",
+    "taxonomy": "pa_ano",
+    "terms": [
+     {
+      "id": 80252,
+      "name": "2026",
+      "slug": "2026"
+     }
+    ]
+   },
+   {
+    "id": 45,
+    "name": "Descripción",
+    "taxonomy": "pa_descripcion",
+    "terms": [
+     {
+      "id": 125533,
+      "name": "2026 SUZUKI GRAND VITARA GLX 1.5 4X4 AUT MHEV .",
+      "slug": "2026-suzuki-grand-vitara-glx-1-5-4x4-aut-mhev"
+     }
+    ]
+   },
+   {
+    "id": 46,
+    "name": "Pasajeros",
+    "taxonomy": "pa_pasajeros",
+    "terms": [
+     {
+      "id": 75858,
+      "name": "5",
+      "slug": "5"
+     }
+    ]
+   },
+   {
+    "id": 39,
+    "name": "Cilindraje",
+    "taxonomy": "pa_cilindraje",
+    "terms": [
+     {
+      "id": 78949,
+      "name": "1.462",
+      "slug": "1-462"
+     }
+    ]
+   },
+   {
+    "id": 47,
+    "name": "Días",
+    "taxonomy": "pa_dias",
+    "terms": [
+     {
+      "id": 75859,
+      "name": "32",
+      "slug": "32"
+     }
+    ]
+   },
+   {
+    "id": 43,
+    "name": "Puertas",
+    "taxonomy": "pa_puertas",
+    "terms": [
+     {
+      "id": 65453,
+      "name": "5",
+      "slug": "5"
+     }
+    ]
+   },
+   {
+    "id": 37,
+    "name": "Tipo de combustible",
+    "taxonomy": "pa_tipo-de-combustible",
+    "terms": [
+     {
+      "id": 76178,
+      "name": "Hibrido",
+      "slug": "hibrido"
+     }
+    ]
+   },
+   {
+    "id": 10,
+    "name": "Color",
+    "taxonomy": "pa_color",
+    "terms": [
+     {
+      "id": 99940,
+      "name": "AZUL",
+      "slug": "azul"
+     }
+    ]
+   },
+   {
+    "id": 5,
+    "name": "Kilometraje",
+    "taxonomy": "pa_kilometraje",
+    "terms": [
+     {
+      "id": 128284,
+      "name": "20996",
+      "slug": "20996"
+     }
+    ]
+   },
+   {
+    "id": 49,
+    "name": "Valor",
+    "taxonomy": "pa_valor",
+    "terms": [
+     {
+      "id": 113604,
+      "name": "114800000",
+      "slug": "114800000"
+     }
+    ]
+   },
+   {
+    "id": 11,
+    "name": "Precio de venta",
+    "taxonomy": "pa_precio-de-venta",
+    "terms": [
+     {
+      "id": 113605,
+      "name": "114800000",
+      "slug": "114800000"
+     }
+    ]
+   },
+   {
+    "id": 52,
+    "name": "Bodega",
+    "taxonomy": "pa_bodega",
+    "terms": [
+     {
+      "id": 75867,
+      "name": "15040_USADOS COMERCIAL BOGOTA 128",
+      "slug": "15040_usados-comercial-bogota-128"
+     }
+    ]
+   },
+   {
+    "id": 4,
+    "name": "Ubicación",
+    "taxonomy": "pa_ubicacion",
+    "terms": [
+     {
+      "id": 43881,
+      "name": "BOGOTA - CALLE 128",
+      "slug": "bogota-calle-128"
+     }
+    ]
+   },
+   {
+    "id": 42,
+    "name": "Clase",
+    "taxonomy": "pa_clase",
+    "terms": [
+     {
+      "id": 81481,
+      "name": "Campero",
+      "slug": "campero"
+     }
+    ]
+   },
+   {
+    "id": 35,
+    "name": "Outlet",
+    "taxonomy": "pa_outlet",
+    "terms": [
+     {
+      "id": 52197,
+      "name": "NO",
+      "slug": "no"
+     }
+    ]
+   },
+   {
+    "id": 15,
+    "name": "Transmisión",
+    "taxonomy": "pa_transmision",
+    "terms": [
+     {
+      "id": 125471,
+      "name": "Automática",
+      "slug": "automatica"
+     }
+    ]
+   },
+   {
+    "id": 53,
+    "name": "Tracción",
+    "taxonomy": "pa_traccion",
+    "terms": [
+     {
+      "id": 126993,
+      "name": "4X4",
+      "slug": "4x4"
+     }
+    ]
+   }
+  ]
+ }
+]

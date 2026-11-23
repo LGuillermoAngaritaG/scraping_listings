@@ -1,0 +1,410 @@
+{
+ "resultsCount": 3,
+ "results": [
+  {
+   "id": 1622166,
+   "name": "TOYOTA COROLLA CROSS SEG. AUT 1,8 HYBRID 4X2 2023",
+   "slug": "toyota-corolla-2",
+   "url": "https://autoexpo.com.co/tu-carro/toyota-corolla-2/",
+   "description": "<p>El número de referencia de este anuncio es :   tst123</p>",
+   "attributes": [
+    {
+     "id": 6655,
+     "name": "Clase",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Camioneta",
+       "slug": "camioneta"
+      }
+     ]
+    },
+    {
+     "id": 6659,
+     "name": "Marca",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Toyota",
+       "slug": "toyota"
+      }
+     ]
+    },
+    {
+     "id": 6660,
+     "name": "Línea",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Corolla",
+       "slug": "corolla"
+      }
+     ]
+    },
+    {
+     "id": 20452,
+     "name": "Referencia",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Cross SEG",
+       "slug": "cross-seg"
+      }
+     ]
+    },
+    {
+     "id": 6656,
+     "name": "Precio",
+     "type": "price",
+     "value": {
+      "vehica_currency_6656_2316": 120800000
+     }
+    },
+    {
+     "id": 14696,
+     "name": "Modelo",
+     "type": "number",
+     "value": 2023
+    },
+    {
+     "id": 6662,
+     "name": "Transmisión",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Automático",
+       "slug": "automatico"
+      }
+     ]
+    },
+    {
+     "id": 6665,
+     "name": "Cilindraje",
+     "type": "number",
+     "value": 1.8
+    },
+    {
+     "id": 6663,
+     "name": "Combustible",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Hybrid",
+       "slug": "hybrid"
+      }
+     ]
+    },
+    {
+     "id": 6664,
+     "name": "Kilometraje",
+     "type": "number",
+     "value": 56185
+    },
+    {
+     "id": 6666,
+     "name": "Color",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Plata",
+       "slug": "plata"
+      }
+     ]
+    },
+    {
+     "id": 16721,
+     "name": "Location",
+     "type": "location",
+     "value": {
+      "address": "Dg. 117 #45 30, Bogotá"
+     }
+    },
+    {
+     "id": 21106,
+     "name": "Placa",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "XXXXX3",
+       "slug": "xxxxx3"
+      }
+     ]
+    }
+   ],
+   "user": {
+    "id": 80,
+    "name": "Autoexpo 116"
+   }
+  },
+  {
+   "id": 1622164,
+   "name": "KIA NEW SPORTAGE ZENITH HEV. AUT 1,6 HYBRID 4X2 2026",
+   "slug": "kia-new-2",
+   "url": "https://autoexpo.com.co/tu-carro/kia-new-2/",
+   "description": "<p>El número de referencia de este anuncio es :   tst123</p>",
+   "attributes": [
+    {
+     "id": 6655,
+     "name": "Clase",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Camioneta",
+       "slug": "camioneta"
+      }
+     ]
+    },
+    {
+     "id": 6659,
+     "name": "Marca",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Kia",
+       "slug": "kia"
+      }
+     ]
+    },
+    {
+     "id": 6660,
+     "name": "Línea",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "New",
+       "slug": "new"
+      }
+     ]
+    },
+    {
+     "id": 20452,
+     "name": "Referencia",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Sportage Zenith HEV.",
+       "slug": "sportage-zenith-hev"
+      }
+     ]
+    },
+    {
+     "id": 6656,
+     "name": "Precio",
+     "type": "price",
+     "value": {
+      "vehica_currency_6656_2316": 142800000
+     }
+    },
+    {
+     "id": 14696,
+     "name": "Modelo",
+     "type": "number",
+     "value": 2026
+    },
+    {
+     "id": 6662,
+     "name": "Transmisión",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Automático",
+       "slug": "automatico"
+      }
+     ]
+    },
+    {
+     "id": 6665,
+     "name": "Cilindraje",
+     "type": "number",
+     "value": 1.6
+    },
+    {
+     "id": 6663,
+     "name": "Combustible",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Hybrid",
+       "slug": "hybrid"
+      }
+     ]
+    },
+    {
+     "id": 6664,
+     "name": "Kilometraje",
+     "type": "number",
+     "value": 36493
+    },
+    {
+     "id": 6666,
+     "name": "Color",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Gris",
+       "slug": "gris"
+      }
+     ]
+    },
+    {
+     "id": 16721,
+     "name": "Location",
+     "type": "location",
+     "value": {
+      "address": "Dg. 117 #45 30, Bogotá"
+     }
+    },
+    {
+     "id": 21106,
+     "name": "Placa",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "XXXXX9",
+       "slug": "xxxxx9"
+      }
+     ]
+    }
+   ],
+   "user": {
+    "id": 80,
+    "name": "Autoexpo 116"
+   }
+  },
+  {
+   "id": 1616827,
+   "name": "Chevrolet Sail LS Sedan Mec 1,4 2018",
+   "slug": "chevrolet-sail",
+   "url": "https://autoexpo.com.co/tu-carro/chevrolet-sail/",
+   "description": "<p>El número de referencia de este anuncio es :   tst123</p>",
+   "attributes": [
+    {
+     "id": 6655,
+     "name": "Clase",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Automóvil",
+       "slug": "automovil"
+      }
+     ]
+    },
+    {
+     "id": 6659,
+     "name": "Marca",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Chevrolet",
+       "slug": "chevrolet"
+      }
+     ]
+    },
+    {
+     "id": 6660,
+     "name": "Línea",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Sail",
+       "slug": "sail"
+      }
+     ]
+    },
+    {
+     "id": 20452,
+     "name": "Referencia",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "LS Sedan.",
+       "slug": "ls-sedan"
+      }
+     ]
+    },
+    {
+     "id": 6656,
+     "name": "Precio",
+     "type": "price",
+     "value": {
+      "vehica_currency_6656_2316": 39800000
+     }
+    },
+    {
+     "id": 14696,
+     "name": "Modelo",
+     "type": "number",
+     "value": 2018
+    },
+    {
+     "id": 6662,
+     "name": "Transmisión",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Mecánico",
+       "slug": "mecanico"
+      }
+     ]
+    },
+    {
+     "id": 6665,
+     "name": "Cilindraje",
+     "type": "number",
+     "value": 1.4
+    },
+    {
+     "id": 6663,
+     "name": "Combustible",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Gasolina",
+       "slug": "gasolina"
+      }
+     ]
+    },
+    {
+     "id": 6664,
+     "name": "Kilometraje",
+     "type": "number",
+     "value": 58040
+    },
+    {
+     "id": 6666,
+     "name": "Color",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "Rojo",
+       "slug": "rojo"
+      }
+     ]
+    },
+    {
+     "id": 16721,
+     "name": "Location",
+     "type": "location",
+     "value": {
+      "address": "Av. Caracas #1b 60, Bogotá"
+     }
+    },
+    {
+     "id": 21106,
+     "name": "Placa",
+     "type": "taxonomy",
+     "value": [
+      {
+       "name": "XXXXX4",
+       "slug": "xxxxx4"
+      }
+     ]
+    }
+   ],
+   "user": {
+    "id": 81,
+    "name": "Autoexpo Centro"
+   }
+  }
+ ]
+}

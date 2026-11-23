@@ -1,0 +1,31 @@
+{
+ "products": [
+  {
+   "id_product": 1618,
+   "name": "Ford Escape SE 2.0 2019",
+   "url": "https://maxiautos.co/camionetas/1618-ford-escape-se-20-2019.html",
+   "link": "https://maxiautos.co/camionetas/1618-ford-escape-se-20-2019.html",
+   "price_amount": 60900000,
+   "manufacturer_name": "Ford",
+   "category_name": "Camionetas",
+   "reference": "TST450"
+  },
+  {
+   "id_product": 1654,
+   "name": "CHEVROLET \tSAIL LT 1.4 2015",
+   "url": "https://maxiautos.co/automoviles/1654--chevrolet-sail-lt-14-2015.html",
+   "link": "https://maxiautos.co/automoviles/1654--chevrolet-sail-lt-14-2015.html",
+   "price_amount": 32900000,
+   "manufacturer_name": "Chevrolet",
+   "category_name": "Automóviles",
+   "reference": "TST451"
+  }
+ ],
+ "pagination": {
+  "total_items": 2,
+  "items_shown_from": 1,
+  "items_shown_to": 2,
+  "current_page": 1,
+  "pages_count": 1
+ }
+}

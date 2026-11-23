@@ -38,21 +38,25 @@ flowchart LR
 
 Screenshots from the Free Edition workspace, 22 and 23 Nov 2026. Emails are hidden.
 
-**Lakeflow pipeline.** One update reads the new CSV files (bronze), cleans them (silver drops 44K rows that break a data rule) and builds the rent and sale tables (gold).
+**Lakeflow pipeline.** One update reads the new property and car files (bronze), cleans them (silver) and builds the rent, sale and car tables (gold): seven tables in two flows.
 
-![Lakeflow pipeline update with its four tables](docs/screenshots/pipeline.png)
+![Lakeflow pipeline update with its seven tables](docs/screenshots/pipeline.png)
 
-**Daily job.** Refreshes the pipeline, then places listings on the map (`locate`) and prices every active listing with both models (`score`, `score_sale`).
+**Daily job.** Refreshes the pipeline, places listings on the map (`locate`) and prices every active listing with the three models (`score`, `score_sale`, `score_vehicle`). Then it runs the two alerts that email the new good deals (`email_property_deals`, `email_car_deals`).
 
 ![inmuebles-daily-refresh run graph](docs/screenshots/daily-refresh-job.png)
+
+**Daily email.** The used-cars alert of 23 Nov 2026, as it arrives on a phone. Each new deal links to its listing and says why it is a deal. The address and the alert link are cut out.
+
+<img src="docs/screenshots/email-car-deals.png" width="360" alt="Email with the new used-car deals">
 
 **Training run in MLflow.** The monthly sale retrain: the validation error of each candidate (`valid_mape_*`), the test error of the new model (`challenger_mape` 19.4%) against the old champion (21.1%) and the barrio median (52.5%), and the tuned settings.
 
 ![MLflow run with metrics and tuned parameters](docs/screenshots/mlflow-run.png)
 
-**Unity Catalog.** The tables of the `inmuebles` schema and the rent model versions. Version 5 has the alias `campeon` and is served by `rent-price`; version 6 is the latest challenger (`retador`), not promoted.
+**Unity Catalog.** The `inmuebles` schema: its tables, the two volumes the scrapers fill (`csv_diarios`, `csv_vehiculos`) and the three models. For the car model, version 1 has the alias `campeon`; version 2 is the latest challenger (`retador`), not promoted.
 
-![Catalog Explorer with the rent_price_model versions](docs/screenshots/model-registry.png)
+![Catalog Explorer with the vehicle_price_model versions](docs/screenshots/model-registry.png)
 
 **Model Serving.** Both endpoints are ready: rent serves version 5, sale version 2.
 
@@ -63,6 +67,10 @@ Screenshots from the Free Edition workspace, 22 and 23 Nov 2026. Emails are hidd
 ![Dashboard price charts](docs/screenshots/dashboard-charts.png)
 
 ![Dashboard barrio maps](docs/screenshots/dashboard-maps.png)
+
+The Used cars page: filters by brand, line, year, body type, transmission, fuel, dealer, date last seen and good deals, the counters, and the median price by model year with its spread.
+
+![Dashboard Used cars page](docs/screenshots/dashboard-cars.png)
 
 **Databricks App.** An estimate with its likely range, the clickable diagram of how it was built, and the live model cards.
 

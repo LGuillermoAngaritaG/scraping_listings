@@ -54,7 +54,9 @@ The rent error is high because most recent rentals have no area (a scraper probl
 | ![Dashboard barrio maps](databricks/docs/screenshots/dashboard-maps.png) | ![App diagram with the Training step open](databricks/docs/screenshots/app-pipeline-diagram.png) |
 | Dashboard: median price per barrio in Bogota and in Medellin, Envigado and Sabaneta | App: the clickable diagram of how the estimate is built |
 | ![inmuebles-daily-refresh run graph](databricks/docs/screenshots/daily-refresh-job.png) | ![MLflow run with metrics and tuned parameters](databricks/docs/screenshots/mlflow-run.png) |
-| The daily job: refresh, score each model, locate barrios | A monthly retrain in MLflow: each candidate's error and the tuned settings |
+| The daily job: refresh, locate barrios, score the three models, email the new deals | A monthly retrain in MLflow: each candidate's error and the tuned settings |
+| <img src="databricks/docs/screenshots/email-car-deals.png" width="320" alt="Email with the new used-car deals"> | ![Dashboard Used cars page](databricks/docs/screenshots/dashboard-cars.png) |
+| The daily email: each new deal with its link and why it is a deal | Dashboard: the Used cars page, with filters, counters and prices by model year |
 
 More in [Running on Databricks](databricks/README.md#running-on-databricks).
 

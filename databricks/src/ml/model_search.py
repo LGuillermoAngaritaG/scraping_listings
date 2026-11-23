@@ -9,7 +9,7 @@ import numpy as np
 import optuna
 from lightgbm import early_stopping
 
-from rent_model import FAMILIES, FEATURES, TARGET, Blend, build_model, metrics, split
+from rent_model import CATEGORICAL, FAMILIES, FEATURES, TARGET, Blend, build_model, metrics, split
 
 ROUNDS = 3000  # most trees a model may grow; early stopping keeps fewer
 PATIENCE = 100  # stop once the validation error has not improved for this many trees
@@ -52,11 +52,11 @@ def xgboost_space(trial) -> dict:
 SPACES = {"lightgbm": lightgbm_space, "catboost": catboost_space, "xgboost": xgboost_space}
 
 
-def fit_early(family: str, params: dict, fit, valid, seed: int):
+def fit_early(family: str, params: dict, fit, valid, seed: int, features=FEATURES, categorical=CATEGORICAL):
     """Fit on `fit` with early stopping on `valid`. Returns (log price of valid, trees kept)."""
-    pipeline = build_model(family, {**params, "n_estimators": ROUNDS}, seed).regressor
-    encode, model = pipeline[:-1].fit(fit[FEATURES]), pipeline[-1]
-    x, x_valid = encode.transform(fit[FEATURES]), encode.transform(valid[FEATURES])
+    pipeline = build_model(family, {**params, "n_estimators": ROUNDS}, seed, categorical).regressor
+    encode, model = pipeline[:-1].fit(fit[features]), pipeline[-1]
+    x, x_valid = encode.transform(fit[features]), encode.transform(valid[features])
     y, y_valid = np.log(fit[TARGET].to_numpy()), np.log(valid[TARGET].to_numpy())
     if family == "lightgbm":
         model.fit(x, y, eval_set=[(x_valid, y_valid)], callbacks=[early_stopping(PATIENCE, verbose=False)])
@@ -70,7 +70,7 @@ def fit_early(family: str, params: dict, fit, valid, seed: int):
     return model.predict(x_valid), rounds
 
 
-def tune(family: str, fit, valid, trials: int, seed: int = 42):
+def tune(family: str, fit, valid, trials: int, seed: int = 42, features=FEATURES, categorical=CATEGORICAL):
     """Optuna's TPE sampler tries `trials` settings, each one steered by how the earlier ones did.
 
     Returns (best, trials table). best has the validation MAPE, the settings with the number of
@@ -80,7 +80,7 @@ def tune(family: str, fit, valid, trials: int, seed: int = 42):
 
     def objective(trial):
         params = SPACES[family](trial)
-        log_price, rounds = fit_early(family, params, fit, valid, seed)
+        log_price, rounds = fit_early(family, params, fit, valid, seed, features, categorical)
         score = metrics(valid[TARGET], np.exp(log_price))["mape"]
         trial.set_user_attr("trees", rounds)
         if not best or score < best["mape"]:
@@ -92,14 +92,15 @@ def tune(family: str, fit, valid, trials: int, seed: int = 42):
     return best, study.trials_dataframe()
 
 
-def search(train, test_days: int, trials: int, seed: int = 42):
+def search(train, test_days: int, trials: int, seed: int = 42, features=FEATURES, categorical=CATEGORICAL):
     """Tune each model type, add their average, and fit the winner on all of `train`.
 
     Returns (model, report). The report has the validation rows, the validation MAPE of each
-    candidate, the winner, and the settings and trials table of each model type.
+    candidate, the winner, and the settings and trials table of each model type. `features`
+    and `categorical` default to the property columns; vehicle_model.py has the vehicle ones.
     """
     fit, valid, _, _ = split(train, test_days, seed)
-    tuned = {family: tune(family, fit, valid, trials, seed) for family in FAMILIES}
+    tuned = {family: tune(family, fit, valid, trials, seed, features, categorical) for family in FAMILIES}
     scores = {family: best["mape"] for family, (best, _) in tuned.items()}
     average = np.mean([best["log_price"] for best, _ in tuned.values()], axis=0)
     scores["blend"] = metrics(valid[TARGET], np.exp(average))["mape"]
@@ -109,10 +110,11 @@ def search(train, test_days: int, trials: int, seed: int = 42):
 
     def final(family):
         params = tuned[family][0]["params"]
-        return build_model(family, {**params, "n_estimators": max(50, round(params["n_estimators"] * grow))}, seed)
+        trees = max(50, round(params["n_estimators"] * grow))
+        return build_model(family, {**params, "n_estimators": trees}, seed, categorical)
 
     model = Blend([final(f) for f in FAMILIES]) if winner == "blend" else final(winner)
-    model.fit(train[FEATURES], train[TARGET])
+    model.fit(train[features], train[TARGET])
     report = {
         "winner": winner,
         "valid_rows": len(valid),

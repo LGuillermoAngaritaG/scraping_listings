@@ -1,6 +1,6 @@
-# Separate bundle for the Streamlit app. Deploy it after the first rent and sale
-# training runs and the first daily scoring, because they create the serving
-# endpoints and the predictions tables it uses.
+# Separate bundle for the Streamlit app. Deploy it after the first rent, sale and
+# vehicle training runs and the first daily scoring, because they create the serving
+# endpoints, the car model and the predictions tables it uses.
 bundle:
   name: inmuebles-app
 
@@ -17,6 +17,12 @@ variables:
     default: workspace.inmuebles.gold_sale_listings
   sale_predictions_table:
     default: workspace.inmuebles.sale_predictions
+  vehicle_model_name:
+    default: workspace.inmuebles.vehicle_price_model
+  vehicle_listings_table:
+    default: workspace.inmuebles.gold_vehicle_listings
+  vehicle_predictions_table:
+    default: workspace.inmuebles.vehicle_predictions
   warehouse_id:
     lookup:
       warehouse: Serverless Starter Warehouse
@@ -29,7 +35,7 @@ resources:
   apps:
     rent_price_app:
       name: rent-price-app
-      description: Estimate the monthly rent or sale price of a property in Bogota, Medellin, Envigado or Sabaneta.
+      description: Estimate the rent or sale price of a property in Bogota, Medellin, Envigado or Sabaneta, or the price of a used car.
       source_code_path: ./src
       resources:
         - name: serving-endpoint
@@ -65,6 +71,24 @@ resources:
         - name: sale-predictions-table
           uc_securable:
             securable_full_name: ${var.sale_predictions_table}
+            securable_type: TABLE
+            permission: SELECT
+        # Used cars. Free Edition allows two serving endpoints, both used by the property models, so
+        # the app loads the car model itself. Unity Catalog grants on a registered model use the
+        # FUNCTION type: EXECUTE lets the app download the model.
+        - name: vehicle-model
+          uc_securable:
+            securable_full_name: ${var.vehicle_model_name}
+            securable_type: FUNCTION
+            permission: EXECUTE
+        - name: vehicle-listings-table
+          uc_securable:
+            securable_full_name: ${var.vehicle_listings_table}
+            securable_type: TABLE
+            permission: SELECT
+        - name: vehicle-predictions-table
+          uc_securable:
+            securable_full_name: ${var.vehicle_predictions_table}
             securable_type: TABLE
             permission: SELECT
         # Read the training runs for the "How it was built" tab.

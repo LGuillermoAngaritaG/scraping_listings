@@ -18,6 +18,11 @@ DATE = "first_seen_date"
 CATEGORICAL = ["source", "city", "property_type", "neighborhood"]
 NUMERIC = ["area_m2", "bedrooms", "bathrooms", "parking", "estrato", "age_years"]
 FEATURES = CATEGORICAL + NUMERIC
+# What train.py and score.py need to know about a kind of listing. vehicle_model.py has its own.
+ID = "property_id"
+BAND_GROUP = "property_type"  # the likely range is set per property type
+BREAKDOWNS = {"metrics_by_type.json": "property_type", "metrics_by_zone.json": "neighborhood"}
+EXTRA_COLUMNS: list[str] = []  # columns copied to the predictions table besides FEATURES
 
 CHAMPION = "campeon"
 CHALLENGER = "retador"
@@ -70,21 +75,23 @@ def split(df: pd.DataFrame, test_days: int, seed: int = 42):
     return df.drop(test.index), test, cutoff, kind
 
 
-def build_model(family: str = "lightgbm", params: dict | None = None, seed: int = 42) -> TransformedTargetRegressor:
+def build_model(family: str = "lightgbm", params: dict | None = None, seed: int = 42,
+                categorical: list[str] | None = None) -> TransformedTargetRegressor:
     """One model type on log(price), as a pipeline: encode, then the model.
 
     LightGBM and XGBoost get text columns as integer codes, with -1 for a value not seen in
     training. CatBoost takes the text itself. Without params, LightGBM gets LIGHTGBM_DEFAULTS
-    and the others their library defaults.
+    and the others their library defaults. `categorical` defaults to the property columns.
     """
     params = dict(params or {})
+    categorical = list(categorical or CATEGORICAL)
     if family == "lightgbm":
         model = LGBMRegressor(**{**LIGHTGBM_DEFAULTS, **params}, subsample_freq=1, random_state=seed, verbose=-1)
     elif family == "xgboost":
         model = XGBRegressor(**params, tree_method="hist", random_state=seed)
     elif family == "catboost":
         # A tuple: CatBoost copies a list, and then scikit-learn cannot clone the model.
-        model = CatBoostRegressor(**params, cat_features=tuple(CATEGORICAL), random_seed=seed, verbose=0,
+        model = CatBoostRegressor(**params, cat_features=tuple(categorical), random_seed=seed, verbose=0,
                                   allow_writing_files=False)
     else:
         raise ValueError(f"unknown model type {family}")
@@ -92,7 +99,7 @@ def build_model(family: str = "lightgbm", params: dict | None = None, seed: int 
         encode = FunctionTransformer()  # keeps the table as it is
     else:
         encode = ColumnTransformer(
-            [("categorical", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1), CATEGORICAL)],
+            [("categorical", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1), categorical)],
             remainder="passthrough",
         )
     return TransformedTargetRegressor(
@@ -136,24 +143,25 @@ def metrics(y_true, y_pred) -> dict:
     }
 
 
-def error_bands(test: pd.DataFrame, prediction, low: float = 0.1, high: float = 0.9, min_rows: int = 50):
-    """How far real prices fall from the prediction, as ratios, per property type.
+def error_bands(test: pd.DataFrame, prediction, low: float = 0.1, high: float = 0.9, min_rows: int = 50,
+                group: str = "property_type"):
+    """How far real prices fall from the prediction, as ratios, per group (property type by default).
 
-    Returns ({type: (low_ratio, high_ratio)}, default). With the default quantiles,
+    Returns ({group value: (low_ratio, high_ratio)}, default). With the default quantiles,
     8 in 10 prices of the test listings were between prediction * low_ratio and
-    prediction * high_ratio. Types with fewer than `min_rows` test rows use the
+    prediction * high_ratio. Groups with fewer than `min_rows` test rows use the
     ratios of all rows (the default).
     """
     log_ratio = np.log(test[TARGET].to_numpy(dtype=float) / np.asarray(prediction, dtype=float))
-    frame = pd.DataFrame({"property_type": test["property_type"].to_numpy(), "r": log_ratio})
+    frame = pd.DataFrame({"group": test[group].to_numpy(), "r": log_ratio})
 
     def ratios(values):
         return tuple(float(x) for x in np.exp(np.quantile(values, [low, high])))
 
     bands = {
-        name: ratios(group["r"])
-        for name, group in frame.groupby("property_type")
-        if len(group) >= min_rows
+        name: ratios(rows["r"])
+        for name, rows in frame.groupby("group")
+        if len(rows) >= min_rows
     }
     return bands, ratios(frame["r"])
 
@@ -176,6 +184,22 @@ def good_deals(listings: pd.DataFrame, price, low) -> np.ndarray:
     """
     size_known = (listings["area_m2"].notna() | listings["bedrooms"].notna()).to_numpy()
     return size_known & (np.asarray(price, dtype=float) < np.asarray(low, dtype=float))
+
+
+def deal_label(listings: pd.DataFrame) -> pd.Series:
+    """A short description of each listing for the new-deals email: "Apartamento, Venecia, 2 bedrooms"."""
+
+    def label(row: dict) -> str:
+        parts = [row["property_type"].capitalize()]
+        if row["neighborhood"] != "unknown":
+            parts.append(row["neighborhood"].title())
+        if pd.notna(row["area_m2"]):
+            parts.append(f"{row['area_m2']:.0f} m2")
+        if pd.notna(row["bedrooms"]):
+            parts.append(f"{row['bedrooms']:.0f} bedroom" + ("" if row["bedrooms"] == 1 else "s"))
+        return ", ".join(parts)
+
+    return pd.Series([label(row) for row in listings.to_dict("records")], index=listings.index, dtype=object)
 
 
 def metrics_by(test: pd.DataFrame, y_pred, column: str, min_rows: int = 20) -> pd.DataFrame:

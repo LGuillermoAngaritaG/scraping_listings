@@ -28,7 +28,7 @@ def detail_files(*days: str) -> list[str]:
     files = []
     for day in days:
         files += sorted(glob.glob(str(DATA_DIR / f"*_details_{day}_*.csv")))
-    assert files, f"no data files for {days}"
+    assert files, f"no data files for {days}: restore the CSV history (Local tests in databricks/README.md)"
     return files
 
 
@@ -45,3 +45,10 @@ def one_file_per_day() -> list[str]:
         source, day = Path(path).name.split("_details_")[0], Path(path).name.split("_")[-2]
         first.setdefault((source, day), path)
     return list(first.values())
+
+
+def vehicle_files() -> list[str]:
+    """Real used-car files from the dealer scrapers."""
+    files = sorted(glob.glob(str(DATA_DIR / "vehicles-*.csv")))
+    assert files, "no vehicle data files: run `scrape-vehicles all` from the repository root"
+    return files

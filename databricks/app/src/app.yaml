@@ -16,3 +16,9 @@ env:
     valueFrom: sale-predictions-table
   - name: MLFLOW_EXPERIMENT_ID
     valueFrom: experiment
+  - name: VEHICLE_MODEL
+    valueFrom: vehicle-model
+  - name: VEHICLE_LISTINGS_TABLE
+    valueFrom: vehicle-listings-table
+  - name: VEHICLE_PREDICTIONS_TABLE
+    valueFrom: vehicle-predictions-table

@@ -25,6 +25,9 @@ variables:
   sale_endpoint_name:
     description: Model Serving endpoint that serves the sale champion model.
     default: sale-price
+  vehicle_model_name:
+    description: Unity Catalog model for used-car prices.
+    default: workspace.inmuebles.vehicle_price_model
   warehouse_id:
     description: SQL warehouse that runs the dashboard queries.
     lookup:

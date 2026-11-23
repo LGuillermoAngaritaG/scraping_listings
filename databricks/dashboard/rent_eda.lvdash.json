@@ -103,6 +103,46 @@
           "expression": "LEAST(MEDIAN(`price_cop`), 2000000000)"
         }
       ]
+    },
+    {
+      "name": "vehicle_listings",
+      "displayName": "Vehicle listings",
+      "queryLines": [
+        "SELECT\n",
+        "  listing_id, source, INITCAP(source) AS dealer, city, INITCAP(city) AS city_label,\n",
+        "  INITCAP(brand) AS brand_label, INITCAP(line) AS line_label, version, title,\n",
+        "  year, COALESCE(CAST(year AS STRING), 'unknown') AS year_label, km, engine_cc,\n",
+        "  COALESCE(INITCAP(transmission), 'Unknown') AS transmission_label,\n",
+        "  COALESCE(INITCAP(fuel), 'Unknown') AS fuel_label,\n",
+        "  COALESCE(INITCAP(body_type), 'Unknown') AS body_type_label,\n",
+        "  color, branch, url, first_seen_date, last_seen_date, days_seen, price_cop, last_price_cop,\n",
+        "  CASE WHEN last_seen_date >= date_sub(current_date(), 7) THEN 1 ELSE 0 END AS still_listed,\n",
+        "  LEAST(price_cop / 1e6, 400) AS price_millions_capped,\n",
+        "  CASE WHEN km <= 300000 AND price_cop <= 600e6 THEN km END AS km_chart,\n",
+        "  CASE WHEN km <= 300000 AND price_cop <= 600e6 THEN price_cop / 1e6 END AS price_millions_chart,\n",
+        "  CASE WHEN good_deal THEN 'Good deals only' ELSE 'Other cars' END AS deal_filter,\n",
+        "  CASE WHEN good_deal THEN 'Good deal' ELSE '' END AS deal_label, predicted_price_cop\n",
+        "FROM gold_vehicle_listings\n",
+        "-- Daily model price and good-deal flag (score.py --listings vehicle). Only cars seen in the last 7 days are scored.\n",
+        "LEFT JOIN (SELECT source AS deal_source, listing_id AS deal_id, good_deal, predicted_price_cop\n",
+        "    FROM vehicle_predictions) d\n",
+        "  ON d.deal_source = source AND d.deal_id = listing_id\n",
+        "ORDER BY last_seen_date DESC, first_seen_date DESC\n"
+      ],
+      "columns": [
+        {
+          "displayName": "Cars",
+          "expression": "COUNT(`listing_id`)"
+        },
+        {
+          "displayName": "Median price",
+          "expression": "MEDIAN(`price_cop`)"
+        },
+        {
+          "displayName": "Median km",
+          "expression": "MEDIAN(`km`)"
+        }
+      ]
     }
   ],
   "pages": [
@@ -3524,6 +3564,1340 @@
           "position": {
             "x": 0,
             "y": 40,
+            "width": 12,
+            "height": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "vehicles",
+      "displayName": "Used cars",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "veh-header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Used cars\n",
+                "\n",
+                "Used cars for sale at dealers in Bogota and nearby towns, scraped once a day."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-brand",
+            "queries": [
+              {
+                "name": "vehicle_listings_brand_label",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "brand_label",
+                      "expression": "`brand_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "brand_label",
+                    "displayName": "Brand",
+                    "queryName": "vehicle_listings_brand_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Brand"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-last-seen",
+            "queries": [
+              {
+                "name": "vehicle_listings_last_seen_date",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "last_seen_date",
+                      "expression": "`last_seen_date`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "last_seen_date",
+                    "displayName": "Last seen",
+                    "queryName": "vehicle_listings_last_seen_date"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Last seen",
+                "showDescription": true,
+                "description": "Date a scraper last found the car"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-good-deals",
+            "queries": [
+              {
+                "name": "vehicle_listings_deal_filter",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "deal_filter",
+                      "expression": "`deal_filter`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "deal_filter",
+                    "displayName": "Good deals",
+                    "queryName": "vehicle_listings_deal_filter"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Good deals",
+                "showDescription": true,
+                "description": "Asking price below the model's likely range. Hover a deal for details."
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-line",
+            "queries": [
+              {
+                "name": "vehicle_listings_line_label",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "line_label",
+                      "expression": "`line_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "line_label",
+                    "displayName": "Line",
+                    "queryName": "vehicle_listings_line_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Line"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-year",
+            "queries": [
+              {
+                "name": "vehicle_listings_year_label",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "year_label",
+                      "expression": "`year_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "year_label",
+                    "displayName": "Year",
+                    "queryName": "vehicle_listings_year_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Year"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-body-type",
+            "queries": [
+              {
+                "name": "vehicle_listings_body_type_label",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "body_type_label",
+                      "expression": "`body_type_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "body_type_label",
+                    "displayName": "Body type",
+                    "queryName": "vehicle_listings_body_type_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Body type"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-transmission",
+            "queries": [
+              {
+                "name": "vehicle_listings_transmission_label",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "transmission_label",
+                      "expression": "`transmission_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "transmission_label",
+                    "displayName": "Transmission",
+                    "queryName": "vehicle_listings_transmission_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Transmission"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-fuel",
+            "queries": [
+              {
+                "name": "vehicle_listings_fuel_label",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "fuel_label",
+                      "expression": "`fuel_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "fuel_label",
+                    "displayName": "Fuel",
+                    "queryName": "vehicle_listings_fuel_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Fuel"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-filter-dealer",
+            "queries": [
+              {
+                "name": "vehicle_listings_dealer",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "dealer",
+                      "expression": "`dealer`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "dealer",
+                    "displayName": "Dealer",
+                    "queryName": "vehicle_listings_dealer"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Dealer"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-kpi-median-price",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median price",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price",
+                "showDescription": true,
+                "description": "Asking price when first seen"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-kpi-median-km",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "measure(Median km)",
+                      "expression": "MEASURE(`Median km`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Median km)",
+                  "displayName": "Median mileage",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median mileage",
+                "showDescription": true,
+                "description": "Kilometers on the odometer"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-kpi-cars",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "measure(Cars)",
+                      "expression": "MEASURE(`Cars`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Cars)",
+                  "displayName": "Cars"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Cars",
+                "showDescription": true,
+                "description": "Seen at least once"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-kpi-still-listed",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "sum(still_listed)",
+                      "expression": "SUM(`still_listed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(still_listed)",
+                  "displayName": "Still listed"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Still listed",
+                "showDescription": true,
+                "description": "Seen in the last 7 days"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-section-prices",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Prices\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-price-by-year",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "year",
+                      "expression": "`year`"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "year",
+                  "displayName": "Model year",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "natural-order"
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median price",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price by model year",
+                "showDescription": true,
+                "description": "Newer cars cost more; the drop is the yearly loss of value"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 8,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-price-histogram",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "bin(price_millions_capped, binWidth=10)",
+                      "expression": "BIN_FLOOR(`price_millions_capped`, 10)"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "histogram",
+              "encodings": {
+                "x": {
+                  "fieldName": "bin(price_millions_capped, binWidth=10)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Price (million COP)"
+                },
+                "y": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Cars"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "How prices spread",
+                "showDescription": true,
+                "description": "Prices above 400 million COP are in the last bar"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 8,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-price-by-brand",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "brand_label",
+                      "expression": "`brand_label`"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median price",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "brand_label",
+                  "displayName": "Brand",
+                  "axis": {
+                    "hideTitle": true
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price by brand"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-price-by-body",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "body_type_label",
+                      "expression": "`body_type_label`"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median price",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "body_type_label",
+                  "displayName": "Body type",
+                  "axis": {
+                    "hideTitle": true
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price by body type"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 14,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-price-vs-km",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "km_chart",
+                      "expression": "`km_chart`"
+                    },
+                    {
+                      "name": "price_millions_chart",
+                      "expression": "`price_millions_chart`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "km_chart",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Mileage (km)"
+                },
+                "y": {
+                  "fieldName": "price_millions_chart",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Price (million COP)"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Price against mileage",
+                "showDescription": true,
+                "description": "Up to 300,000 km and 600 million COP"
+              },
+              "mark": {
+                "opacity": 0.35
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 14,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-section-cars",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Which cars\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-lines-table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "brand_label",
+                      "expression": "`brand_label`"
+                    },
+                    {
+                      "name": "line_label",
+                      "expression": "`line_label`"
+                    },
+                    {
+                      "name": "measure(Cars)",
+                      "expression": "MEASURE(`Cars`)"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    },
+                    {
+                      "name": "measure(Median km)",
+                      "expression": "MEASURE(`Median km`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "DESC",
+                      "expression": "MEASURE(`Cars`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "brand_label",
+                    "displayName": "Brand"
+                  },
+                  {
+                    "fieldName": "line_label",
+                    "displayName": "Line"
+                  },
+                  {
+                    "fieldName": "measure(Cars)",
+                    "displayName": "Cars"
+                  },
+                  {
+                    "fieldName": "measure(Median price)",
+                    "displayName": "Median price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "measure(Median km)",
+                    "displayName": "Median km",
+                    "format": {
+                      "type": "number-plain",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 0
+                      }
+                    }
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Brands and lines",
+                "showDescription": true,
+                "description": "Most cars first. Click a column header to sort"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-cars-by-dealer",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "dealer",
+                      "expression": "`dealer`"
+                    },
+                    {
+                      "name": "measure(Cars)",
+                      "expression": "MEASURE(`Cars`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "measure(Cars)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Cars"
+                },
+                "y": {
+                  "fieldName": "dealer",
+                  "displayName": "Dealer",
+                  "axis": {
+                    "hideTitle": true
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "x-reversed"
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Cars by dealer"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 23,
+            "width": 6,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-section-listings",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### All cars\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 31,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "veh-listings-table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "vehicle_listings",
+                  "fields": [
+                    {
+                      "name": "last_seen_date",
+                      "expression": "`last_seen_date`"
+                    },
+                    {
+                      "name": "first_seen_date",
+                      "expression": "`first_seen_date`"
+                    },
+                    {
+                      "name": "brand_label",
+                      "expression": "`brand_label`"
+                    },
+                    {
+                      "name": "line_label",
+                      "expression": "`line_label`"
+                    },
+                    {
+                      "name": "version",
+                      "expression": "`version`"
+                    },
+                    {
+                      "name": "year",
+                      "expression": "`year`"
+                    },
+                    {
+                      "name": "km",
+                      "expression": "`km`"
+                    },
+                    {
+                      "name": "transmission_label",
+                      "expression": "`transmission_label`"
+                    },
+                    {
+                      "name": "fuel_label",
+                      "expression": "`fuel_label`"
+                    },
+                    {
+                      "name": "body_type_label",
+                      "expression": "`body_type_label`"
+                    },
+                    {
+                      "name": "deal_label",
+                      "expression": "`deal_label`"
+                    },
+                    {
+                      "name": "last_price_cop",
+                      "expression": "`last_price_cop`"
+                    },
+                    {
+                      "name": "predicted_price_cop",
+                      "expression": "`predicted_price_cop`"
+                    },
+                    {
+                      "name": "url",
+                      "expression": "`url`"
+                    },
+                    {
+                      "name": "dealer",
+                      "expression": "`dealer`"
+                    },
+                    {
+                      "name": "branch",
+                      "expression": "`branch`"
+                    },
+                    {
+                      "name": "days_seen",
+                      "expression": "`days_seen`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "last_seen_date",
+                    "displayName": "Last seen"
+                  },
+                  {
+                    "fieldName": "first_seen_date",
+                    "displayName": "First seen"
+                  },
+                  {
+                    "fieldName": "brand_label",
+                    "displayName": "Brand"
+                  },
+                  {
+                    "fieldName": "line_label",
+                    "displayName": "Line"
+                  },
+                  {
+                    "fieldName": "version",
+                    "displayName": "Version"
+                  },
+                  {
+                    "fieldName": "year",
+                    "displayName": "Year"
+                  },
+                  {
+                    "fieldName": "km",
+                    "displayName": "Km",
+                    "format": {
+                      "type": "number-plain",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 0
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "transmission_label",
+                    "displayName": "Transmission"
+                  },
+                  {
+                    "fieldName": "fuel_label",
+                    "displayName": "Fuel"
+                  },
+                  {
+                    "fieldName": "body_type_label",
+                    "displayName": "Body type"
+                  },
+                  {
+                    "fieldName": "deal_label",
+                    "displayName": "Deal",
+                    "tooltip": {
+                      "templatedText": "A good deal asks less than the low end of the price range the model expects for it. Fewer than 1 in 10 similar cars ask that little. Only cars seen in the last 7 days with a known year and mileage can be good deals."
+                    }
+                  },
+                  {
+                    "fieldName": "last_price_cop",
+                    "displayName": "Last price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "predicted_price_cop",
+                    "displayName": "Model price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    },
+                    "tooltip": {
+                      "templatedText": "The price the model expects for this car, from its brand, line, year, mileage and the rest. Only cars seen in the last 7 days get one."
+                    }
+                  },
+                  {
+                    "fieldName": "url",
+                    "displayName": "Listing",
+                    "link": {
+                      "templatedURL": "{{@}}"
+                    }
+                  },
+                  {
+                    "fieldName": "dealer",
+                    "displayName": "Dealer"
+                  },
+                  {
+                    "fieldName": "branch",
+                    "displayName": "Branch"
+                  },
+                  {
+                    "fieldName": "days_seen",
+                    "displayName": "Days seen"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "All cars",
+                "showDescription": true,
+                "description": "Most recently seen first. Days seen counts the days a scraper found it"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 32,
             "width": 12,
             "height": 10
           }

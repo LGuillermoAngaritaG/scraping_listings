@@ -1,0 +1,95 @@
+# Two daily emails of new good deals: houses and apartments for sale, and used cars. A deal is
+# new when it is a good deal today (Bogota date) and was not on the previous scoring day; on
+# the first day of history every deal is new. The score tasks write the *_deal_history tables
+# (rentals too, though they are not emailed). The daily job runs each alert right after its
+# scoring, so the alerts' own schedules stay paused; the field is required. A deal more than
+# 50% below the model price gets a warning: the largest one in the first email was a data
+# error (a 4,800 m2 apartment).
+resources:
+  alerts:
+    new_property_deals:
+      display_name: New good deals - houses and apartments for sale
+      warehouse_id: ${var.warehouse_id}
+      query_text: |
+        WITH history AS (SELECT * FROM ${var.catalog}.${var.schema}.sale_deal_history),
+        today AS (SELECT to_date(from_utc_timestamp(current_timestamp(), 'America/Bogota')) AS day),
+        previous AS (SELECT max(h.scored_date) AS day FROM history h JOIN today t ON h.scored_date < t.day),
+        today_deals AS (
+          SELECT h.* FROM history h JOIN today t ON h.scored_date = t.day
+          WHERE h.listing_type IN ('apartamento', 'apartaestudio', 'casa')
+        ),
+        previous_deals AS (SELECT h.* FROM history h JOIN previous p ON h.scored_date = p.day)
+        SELECT
+          t.label AS title,
+          concat('For sale in ', initcap(t.city), ' on ', initcap(t.source)) AS details,
+          concat('Asks ', format_number(t.last_price_cop / 1e6, 0), ' M COP, ',
+                 cast(round(-100 * t.price_gap_pct) AS INT), '% below the ',
+                 format_number(t.predicted_price_cop / 1e6, 0), ' M COP the model expects for a property of ',
+                 'this type, size, barrio and estrato. Its likely range starts at ',
+                 format_number(t.predicted_low_cop / 1e6, 0), ' M COP, and this price is below it.',
+                 IF(t.price_gap_pct < -0.5, ' Warning: a price this far below the model often comes from '
+                    || 'a data error, such as a wrong area. Check the listing.', '')) AS why,
+          t.url AS link,
+          count(*) OVER () AS deals_today
+        FROM today_deals t
+        LEFT ANTI JOIN previous_deals y ON t.source = y.source AND t.listing_id = y.listing_id
+        ORDER BY t.price_gap_pct
+      evaluation: &new_deals_evaluation
+        # No aggregation: with one, the email would get only the aggregate, not the rows.
+        source:
+          name: deals_today
+        comparison_operator: GREATER_THAN
+        threshold:
+          value:
+            double_value: 0
+        empty_result_state: OK  # no new deals, no email
+        notification:
+          notify_on_ok: false
+          retrigger_seconds: 1  # email on every run that finds new deals, not only the first
+          subscriptions:
+            - user_email: ${workspace.current_user.userName}
+      custom_template_format: HTML
+      custom_summary: "{{QUERY_RESULT_VALUE}} new good deals: houses and apartments for sale"
+      custom_description: |
+        <p>Houses and apartments for sale that became good deals since the day before. Each one asks less than the low end of the price range the model expects for it. Biggest discount first.</p>
+        {{#QUERY_RESULT_ROWS}}
+        <p><a href="{{link}}"><b>{{title}}</b></a><br>{{details}}<br>{{why}}</p>
+        {{/QUERY_RESULT_ROWS}}
+      schedule: &paused_schedule
+        quartz_cron_schedule: "0 0 8 * * ?"
+        timezone_id: America/Bogota
+        pause_status: PAUSED
+
+    new_car_deals:
+      display_name: New good deals - used cars
+      warehouse_id: ${var.warehouse_id}
+      query_text: |
+        WITH history AS (SELECT * FROM ${var.catalog}.${var.schema}.vehicle_deal_history),
+        today AS (SELECT to_date(from_utc_timestamp(current_timestamp(), 'America/Bogota')) AS day),
+        previous AS (SELECT max(h.scored_date) AS day FROM history h JOIN today t ON h.scored_date < t.day),
+        today_deals AS (SELECT h.* FROM history h JOIN today t ON h.scored_date = t.day),
+        previous_deals AS (SELECT h.* FROM history h JOIN previous p ON h.scored_date = p.day)
+        SELECT
+          t.label AS title,
+          concat('Used car in ', initcap(t.city), ' at ', initcap(t.source)) AS details,
+          concat('Asks ', format_number(t.last_price_cop / 1e6, 1), ' M COP, ',
+                 cast(round(-100 * t.price_gap_pct) AS INT), '% below the ',
+                 format_number(t.predicted_price_cop / 1e6, 1), ' M COP the model expects for a car of ',
+                 'this brand, line, year and mileage. Its likely range starts at ',
+                 format_number(t.predicted_low_cop / 1e6, 1), ' M COP, and this price is below it.',
+                 IF(t.price_gap_pct < -0.5, ' Warning: a price this far below the model often comes from '
+                    || 'a data error, such as a wrong year or mileage. Check the listing.', '')) AS why,
+          t.url AS link,
+          count(*) OVER () AS deals_today
+        FROM today_deals t
+        LEFT ANTI JOIN previous_deals y ON t.source = y.source AND t.listing_id = y.listing_id
+        ORDER BY t.price_gap_pct
+      evaluation: *new_deals_evaluation
+      custom_template_format: HTML
+      custom_summary: "{{QUERY_RESULT_VALUE}} new good deals: used cars"
+      custom_description: |
+        <p>Used cars that became good deals since the day before. Each one asks less than the low end of the price range the model expects for it. Biggest discount first.</p>
+        {{#QUERY_RESULT_ROWS}}
+        <p><a href="{{link}}"><b>{{title}}</b></a><br>{{details}}<br>{{why}}</p>
+        {{/QUERY_RESULT_ROWS}}
+      schedule: *paused_schedule

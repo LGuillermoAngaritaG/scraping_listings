@@ -10,21 +10,25 @@ import pandas as pd
 
 
 class BandedRentModel(mlflow.pyfunc.PythonModel):
-    """Wraps the LightGBM pipeline. Returns prediction, low and high for each row.
+    """Wraps the price model. Returns prediction, low and high for each row.
 
     The range uses the ratios from rent_model.error_bands: real prices of recent
-    held-out listings fell inside it 8 times in 10, per property type.
+    held-out listings fell inside it 8 times in 10, per group (property type, or
+    body type for vehicles).
     """
 
-    def __init__(self, model, features: list[str], bands: dict, default: tuple):
+    def __init__(self, model, features: list[str], bands: dict, default: tuple, group: str = "property_type"):
         self.model = model
         self.features = list(features)
         self.bands = bands
         self.default = default
+        self.group = group
 
     def predict(self, context, model_input: pd.DataFrame, params=None) -> pd.DataFrame:
         prediction = self.model.predict(model_input[self.features])
-        ratios = np.array([self.bands.get(t, self.default) for t in model_input["property_type"]])
+        # Versions pickled before `group` existed are property models.
+        group = getattr(self, "group", "property_type")
+        ratios = np.array([self.bands.get(t, self.default) for t in model_input[group]])
         return pd.DataFrame(
             {"prediction": prediction, "low": prediction * ratios[:, 0], "high": prediction * ratios[:, 1]}
         )

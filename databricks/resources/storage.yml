@@ -20,6 +20,13 @@ resources:
       volume_type: MANAGED
       comment: Public map data for the neighborhood map (Bogota barrios, OpenStreetMap places). Uploaded by hand.
 
+    csv_vehiculos:
+      name: csv_vehiculos
+      catalog_name: ${var.catalog}
+      schema_name: ${resources.schemas.inmuebles.name}
+      volume_type: MANAGED
+      comment: Raw used-car CSV files from the dealer scrapers, uploaded by the GitHub Action.
+
   experiments:
     rent_price:
       name: /Workspace/Users/${workspace.current_user.userName}/inmuebles-rent-price

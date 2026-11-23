@@ -12,3 +12,4 @@ resources:
             include: ../src/pipeline/transformations/**
       configuration:
         volume_path: /Volumes/${var.catalog}/${var.schema}/csv_diarios
+        vehicle_volume_path: /Volumes/${var.catalog}/${var.schema}/csv_vehiculos

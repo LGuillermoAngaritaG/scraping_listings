@@ -2,7 +2,7 @@ resources:
   jobs:
     daily_refresh:
       name: inmuebles-daily-refresh
-      description: Load new CSV files into bronze, rebuild silver and gold, then price active rentals and sales, flag good deals and place neighborhoods on the map.
+      description: Load new CSV files into bronze, rebuild silver and gold, then price active rentals, sales and used cars, flag good deals, email the new ones and place neighborhoods on the map.
       # The scrapers upload 7 files a day. One refresh a day is enough.
       # To react to each file instead, replace the schedule with:
       #   trigger: { file_arrival: { url: /Volumes/workspace/inmuebles/csv_diarios/ } }
@@ -39,6 +39,31 @@ resources:
               - --catalog=${var.catalog}
               - --schema=${var.schema}
               - --model-name=${var.sale_model_name}
+        - task_key: score_vehicle
+          depends_on:
+            - task_key: refresh_pipeline
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/score.py
+            parameters:
+              - --listings=vehicle
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --model-name=${var.vehicle_model_name}
+        # Email the deals that are new since the day before (resources/alerts.yml), each right
+        # after its scoring. A failed scoring sends nothing that day.
+        - task_key: email_property_deals
+          depends_on:
+            - task_key: score_sale
+          alert_task:
+            alert_id: ${resources.alerts.new_property_deals.id}
+            warehouse_id: ${var.warehouse_id}
+        - task_key: email_car_deals
+          depends_on:
+            - task_key: score_vehicle
+          alert_task:
+            alert_id: ${resources.alerts.new_car_deals.id}
+            warehouse_id: ${var.warehouse_id}
         - task_key: locate
           depends_on:
             - task_key: refresh_pipeline
@@ -52,7 +77,7 @@ resources:
 
     retrain:
       name: inmuebles-retrain
-      description: Train a rent and a sale challenger. Each is promoted only if it beats its champion.
+      description: Train a rent, a sale and a used-car challenger, one after the other. Each is promoted only if it beats its champion.
       schedule:
         quartz_cron_expression: "0 0 8 1 * ?"  # 1st day of each month
         timezone_id: America/Bogota
@@ -87,6 +112,21 @@ resources:
               - --schema=${var.schema}
               - --model-name=${var.sale_model_name}
               - --endpoint-name=${var.sale_endpoint_name}
+              - --experiment=${resources.experiments.rent_price.name}
+        - task_key: train_vehicle
+          # No endpoint: Free Edition allows two and its serving quota fits only two models, so
+          # the app loads the car champion itself. After sales to keep one training at a time.
+          depends_on:
+            - task_key: train_sale
+          run_if: ALL_DONE
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/train.py
+            parameters:
+              - --listings=vehicle
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --model-name=${var.vehicle_model_name}
               - --experiment=${resources.experiments.rent_price.name}
 
     monitor:

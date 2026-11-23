@@ -1,4 +1,4 @@
-"""Estimate the monthly rent or the sale price of a property with a serving endpoint, and show similar listings."""
+"""Estimate the rent or sale price of a property, or the price of a used car, with serving endpoints, and show similar listings."""
 
 import html
 import os
@@ -24,6 +24,16 @@ MODES = {
              "predictions": os.environ["SALE_PREDICTIONS_TABLE"], "label": "Sale price", "unit": "COP",
              "button": "Estimate sale price"},
 }
+# Used cars have their own model, tables and form (the "Car price" tab). Free Edition allows two serving
+# endpoints, both used by the property models, so the app loads the car model itself (car_model()).
+VEHICLE = {"model": os.environ["VEHICLE_MODEL"], "listings": os.environ["VEHICLE_LISTINGS_TABLE"],
+           "predictions": os.environ["VEHICLE_PREDICTIONS_TABLE"], "label": "Car price", "unit": "COP",
+           "button": "Estimate car price"}
+CHAMPION = "campeon"
+MODELS = {**MODES, "vehicle": VEHICLE}  # one model card each in "How it was built"
+# The simple rule each model must beat (baseline_predict in rent_model.py and vehicle_model.py).
+BASELINES = {"rent": "barrio median", "sale": "barrio median", "vehicle": "median of the same line and year"}
+CAR_ACRONYMS = {"bmw", "mg", "byd", "jac", "dfsk", "gac", "baic", "ds", "gmc", "vw", "jmc", "suv"}
 CITIES = {"bogota": "Bogota", "medellin": "Medellin", "envigado": "Envigado", "sabaneta": "Sabaneta"}
 DEFAULT_ZONES = ["chico norte", "el poblado"]
 ANY_ZONE = ""  # the user did not pick a barrio
@@ -146,15 +156,15 @@ def run_sql(statement: str, **params) -> pd.DataFrame:
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def load_summary() -> dict:
-    """Numbers for the header: listings for rent and sale, neighborhoods and the last scrape date."""
+    """Numbers for the header: property listings, neighborhoods, used cars and the last scrape date."""
     tables = " UNION ALL ".join(
         f"SELECT city, neighborhood, last_seen_date FROM {mode['listings']}" for mode in MODES.values()
     )
     row = run_sql(
         "SELECT COUNT(*) AS listings, COUNT(DISTINCT city, neighborhood) AS zones, "
-        f"MAX(last_seen_date) AS updated FROM ({tables})"
+        f"MAX(last_seen_date) AS updated, (SELECT COUNT(*) FROM {VEHICLE['listings']}) AS cars FROM ({tables})"
     ).iloc[0]
-    return {"listings": int(row["listings"]), "zones": int(row["zones"]),
+    return {"listings": int(row["listings"]), "zones": int(row["zones"]), "cars": int(row["cars"]),
             "updated": pd.Timestamp(row["updated"]).strftime("%-d %b %Y")}
 
 
@@ -238,8 +248,9 @@ def cop(value: float) -> str:
 
 
 def rounded(value: float, mode: str) -> float:
-    """Estimates to the nearest 10,000 pesos for rent and 1 million for sale: more digits would be false precision."""
-    step = 10_000 if mode == "rent" else 1_000_000
+    """Estimates to the nearest 10,000 pesos for rent, 100,000 for cars and 1 million for sale: more digits would
+    be false precision."""
+    step = {"rent": 10_000, "vehicle": 100_000}.get(mode, 1_000_000)
     return round(value / step) * step
 
 
@@ -247,7 +258,8 @@ def millions(value: float) -> str:
     return f"${value / 1e6:,.1f}M"
 
 
-def range_chart(estimate: float, low: float | None, high: float | None, prices: list[float]) -> alt.LayerChart:
+def range_chart(estimate: float, low: float | None, high: float | None, prices: list[float],
+                similar: str = "Similar listing") -> alt.LayerChart:
     """One row: the likely range as a band, the estimate as a tick, similar listings as dots."""
     values = [estimate, *prices] + ([low, high] if low is not None else [])
     pad = 0.08 * (max(values) - min(values)) or 0.1 * estimate
@@ -280,7 +292,7 @@ def range_chart(estimate: float, low: float | None, high: float | None, prices: 
             alt.Chart(pd.DataFrame({"price": prices})).mark_circle(
                 size=120, color=ORANGE, opacity=1, stroke=SURFACE, strokeWidth=2
             ).encode(x=alt.X("price:Q", scale=scale, axis=axis), y=alt.value(52),
-                     tooltip=[alt.Tooltip("price:Q", title="Similar listing", format="$,.0f")])
+                     tooltip=[alt.Tooltip("price:Q", title=similar, format="$,.0f")])
         )
     return (
         alt.layer(*layers)
@@ -317,27 +329,40 @@ def card(row) -> str:
 
 @st.cache_data(ttl=6 * 3600, show_spinner=False)
 def listing_counts() -> pd.DataFrame:
-    """Listings per city for rent and sale, and the first day each was collected."""
+    """Listings per city for rent, sale and used cars, and the first day each was collected."""
     tables = " UNION ALL ".join(
-        f"SELECT '{mode}' AS mode, city, first_seen_date FROM {c['listings']}" for mode, c in MODES.items()
+        f"SELECT '{mode}' AS mode, city, first_seen_date FROM {c['listings']}" for mode, c in MODELS.items()
     )
     rows = run_sql(f"SELECT city, mode, COUNT(*) AS n, MIN(first_seen_date) AS since FROM ({tables}) GROUP BY city, mode")
     rows = rows.astype({"n": int}).assign(since=pd.to_datetime(rows["since"]))
-    counts = rows.pivot(index="city", columns="mode", values="n").reindex(columns=list(MODES), fill_value=0)
-    cities = [c for c in CITIES if c in counts.index]
+    # Car dealers also list cars in towns near Bogota; they share one row.
+    rows["city"] = rows["city"].where(rows["city"].isin(list(CITIES)), "other")
+    rows = rows.groupby(["city", "mode"], as_index=False).agg(n=("n", "sum"), since=("since", "min"))
+    counts = rows.pivot(index="city", columns="mode", values="n").reindex(columns=list(MODELS), fill_value=0)
+    names = {**CITIES, "other": "Other towns"}
+    cities = [c for c in names if c in counts.index]
     return pd.DataFrame({
-        "City": [CITIES[c] for c in cities],
+        "City": [names[c] for c in cities],
         "Rentals": counts.loc[cities, "rent"].fillna(0).astype(int).to_numpy(),
         "Sales": counts.loc[cities, "sale"].fillna(0).astype(int).to_numpy(),
+        "Used cars": counts.loc[cities, "vehicle"].fillna(0).astype(int).to_numpy(),
         "Collected since": rows.groupby("city")["since"].min()[cities].dt.strftime("%-d %b %Y").to_numpy(),
     }).set_index("City")
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def model_facts(mode: str) -> dict:
-    """The model version the endpoint serves, the training run that built it and the latest retrain."""
+    """The model version in use, the training run that built it and the latest retrain.
+
+    In use: the version the endpoint serves, or for cars the champion the app loads.
+    """
     w = WorkspaceClient()
-    served = w.serving_endpoints.get(MODES[mode]["endpoint"]).config.served_entities[0]
+    if "endpoint" in MODELS[mode]:
+        served = w.serving_endpoints.get(MODELS[mode]["endpoint"]).config.served_entities[0]
+        model, version = served.entity_name, served.entity_version
+    else:
+        model = MODELS[mode]["model"]
+        version = str(w.model_versions.get_by_alias(model, CHAMPION).version)
     runs = []
     for run in w.experiments.search_runs(experiment_ids=[EXPERIMENT_ID], order_by=["start_time DESC"]):
         tags = {t.key: t.value for t in run.data.tags or []}
@@ -350,8 +375,8 @@ def model_facts(mode: str) -> dict:
                 "metrics": {m.key: m.value for m in run.data.metrics or []},
                 "promoted": tags.get("promoted") == "True",
             })
-    built = next(r for r in runs if r["version"] == served.entity_version)
-    return {"model": served.entity_name, "version": served.entity_version, "built": built, "latest": runs[0]}
+    built = next(r for r in runs if r["version"] == version)
+    return {"model": model, "version": version, "built": built, "latest": runs[0]}
 
 
 def percent(value: float) -> str:
@@ -382,13 +407,14 @@ def facts_list(items: list[tuple[str, str]]) -> str:
 def model_card(mode: str):
     facts = model_facts(mode)
     built, params, metrics = facts["built"], facts["built"]["params"], facts["built"]["metrics"]
-    st.html(f'<div class="label">{MODES[mode]["label"]} model</div>')
+    baseline = BASELINES[mode]
+    st.html(f'<div class="label">{MODELS[mode]["label"]} model</div>')
     col1, col2 = st.columns(2)
     col1.metric("Average error (MAPE)", percent(metrics["challenger_mape"]),
-                delta=f"{(metrics['challenger_mape'] - metrics['baseline_mape']) * 100:+.0f} points vs barrio median",
+                delta=f"{(metrics['challenger_mape'] - metrics['baseline_mape']) * 100:+.0f} points vs {baseline}",
                 delta_color="inverse")
-    col2.metric("Barrio median error", percent(metrics["baseline_mape"]),
-                help="The simple rule the model must beat: the median price of the barrio in the training data.")
+    col2.metric(f"{baseline.capitalize()} error", percent(metrics["baseline_mape"]),
+                help=f"The simple rule the model must beat: the {baseline} price in the training data.")
     cutoff = pd.Timestamp(params["train_cutoff"]).strftime("%-d %b %Y")
     test_rows = int(params["test_rows"])
     # Runs from before the split parameter always used the last 30 days.
@@ -447,38 +473,43 @@ def counts_table() -> str:
     except Exception as error:  # noqa: BLE001 - show the reason instead of breaking the page
         return f'<p class="note">Could not load the listing counts: {html.escape(str(error))}</p>'
     rows = "".join(
-        f"<tr><td>{city}</td><td>{rent:,}</td><td>{sale:,}</td><td>{since}</td></tr>"
-        for city, (rent, sale, since) in zip(counts.index, counts.to_numpy(), strict=True)
+        f"<tr><td>{city}</td><td>{rent:,}</td><td>{sale:,}</td><td>{cars:,}</td><td>{since}</td></tr>"
+        for city, (rent, sale, cars, since) in zip(counts.index, counts.to_numpy(), strict=True)
     )
-    return ('<table class="counts"><thead><tr><th>City</th><th>Rentals</th><th>Sales</th><th>Collected since</th>'
-            f"</tr></thead><tbody>{rows}</tbody></table>")
+    return ('<table class="counts"><thead><tr><th>City</th><th>Rentals</th><th>Sales</th><th>Used cars</th>'
+            f"<th>Collected since</th></tr></thead><tbody>{rows}</tbody></table>")
 
 
 def pipeline_steps() -> list[dict]:
     """The six steps of the diagram: tile text and the panel shown when the step is picked."""
     return [
-        {"key": "sources", "name": "Sources", "what": "Fincaraiz and Metrocuadrado",
-         "title": "Sources: two listing websites",
-         "lead": "Listings come from two Colombian property websites, Fincaraiz and Metrocuadrado. Sixteen "
-                 "searches cover each site, four cities, and rent and sale.",
-         "facts": [("Websites", "Fincaraiz, Metrocuadrado"), ("Cities", "Bogota, Medellin, Envigado, Sabaneta"),
-                   ("Searches", "16: site, city, and rent or sale")],
+        {"key": "sources", "name": "Sources", "what": "Two property sites, six car dealers",
+         "title": "Sources: two property websites and six car dealers",
+         "lead": "Property listings come from two Colombian websites, Fincaraiz and Metrocuadrado. Sixteen "
+                 "searches cover each site, four cities, and rent and sale. Used cars come from the stock pages "
+                 "of six dealers, mostly in Bogota and nearby towns.",
+         "facts": [("Property websites", "Fincaraiz, Metrocuadrado"),
+                   ("Cities", "Bogota, Medellin, Envigado, Sabaneta"),
+                   ("Searches", "16: site, city, and rent or sale"),
+                   ("Car dealers", "Autoexpo, Casa Toro, Autonal, Madiautos, Metrousados")],
          "extra": counts_table()},
         {"key": "scrape", "name": "Scraping", "what": "GitHub Actions, every 6 to 8 hours",
          "title": "Scraping: GitHub Actions, several times a day",
          "lead": "Each search runs as its own job. A scraper reads the first result pages to collect listing "
                  "links, then opens each listing and reads its title, price, area, rooms, location and technical "
                  "sheet (estrato, parking, age).",
-         "facts": [("Schedule", "Fincaraiz every 6 hours, Metrocuadrado every 8 hours"),
-                   ("Depth", "5 result pages on Fincaraiz, 2 on Metrocuadrado"),
+         "facts": [("Schedule", "Fincaraiz every 6 hours, Metrocuadrado every 8 hours, car dealers once a day"),
+                   ("Depth", "5 result pages on Fincaraiz, 2 on Metrocuadrado, the full stock of each dealer"),
                    ("Tools", "Scrapy for Fincaraiz (plain HTML); Playwright, a real browser, for Metrocuadrado "
-                             "(pages built with JavaScript)"),
-                   ("Output", "One CSV file per search and run")]},
+                             "(pages built with JavaScript); the dealers' own catalog feeds or pages, one request "
+                             "a second at most"),
+                   ("Output", "One CSV file per search and run. For cars, only the last digit of a plate is "
+                              "kept")]},
         {"key": "land", "name": "Landing", "what": "Files in a Databricks volume",
          "title": "Landing: every file kept twice",
          "lead": "Each run commits its CSV files to the Git repository, which keeps the full history, and uploads "
                  "them to a Unity Catalog volume in Databricks.",
-         "facts": [("Storage", "Unity Catalog volume in workspace.inmuebles"),
+         "facts": [("Storage", "Unity Catalog volumes in workspace.inmuebles, one for properties, one for cars"),
                    ("Read by", "Auto Loader, which reads each new file once"),
                    ("History", "Every file since October 2025 is in Git")]},
         {"key": "clean", "name": "Cleaning", "what": "Lakeflow pipeline, daily",
@@ -490,17 +521,21 @@ def pipeline_steps() -> list[dict]:
                     "The city and rent or sale come from the search that found the listing. One row per listing "
                     "and day. Rows with an impossible price or no id are dropped.",
                     "<b>Gold:</b> one row per listing, with its first asking price and the first and last day a "
-                    "scraper saw it. One table for rentals, one for sales.",
+                    "scraper saw it. One table for rentals, one for sales, one for used cars.",
+                    "<b>Cars:</b> brand, line, year, mileage and price are checked the same way; a car with an "
+                    "impossible price, year or mileage is dropped.",
                     "<b>Maps:</b> barrio names are matched to official barrio outlines for the dashboard maps."]},
         {"key": "train", "name": "Training", "what": "Model search, monthly",
          "title": "Training: three model types compete, every month",
-         "lead": "One model estimates monthly rent and one estimates sale prices, with the same code. Each month "
+         "lead": "One model estimates monthly rent, one sale prices and one used-car prices, with the same code. "
+                 "Each month "
                  "LightGBM, CatBoost and XGBoost are tuned and compared with their average, and the best one is "
                  "kept. All three are boosted trees: each tree corrects the errors of the ones before.",
          "points": ["<b>Predicts</b> the first asking price, on a log scale, because prices go from half a million "
                     "to billions of pesos.",
                     "<b>Uses</b> the website, city, property type, barrio, area, bedrooms, bathrooms, parking, "
-                    "estrato and building age. Barrio, area and age can be missing.",
+                    "estrato and building age. Barrio, area and age can be missing. The car model uses the "
+                    "dealer, city, brand, line, model year, mileage, transmission, fuel, body type and engine size.",
                     "<b>Tested</b> on listings it did not see: in each city with 60 days of data or more, the "
                     "last 30 days; in a newer city, a random 1 in 5 of its listings, so the model still learns "
                     "the rest.",
@@ -510,10 +545,11 @@ def pipeline_steps() -> list[dict]:
                     "<b>Picked</b> by the lowest validation error among the three tuned models and their "
                     "average. The test listings are used once, after, to compare with the version in use. "
                     "Random forest, a linear model and a small neural net were tried too and did worse.",
-                    "<b>Must beat</b> the median price of the barrio, and the version in use, on the same test "
-                    "listings. Otherwise the version in use stays.",
+                    "<b>Must beat</b> the median price of the barrio (for cars, of the same line and year), and "
+                    "the version in use, on the same test listings. Otherwise the version in use stays.",
                     "<b>Likely range</b> from the 10th and 90th percentile of real price divided by estimate on "
-                    "the test listings, per property type. About 3 in 4 real prices fall inside."],
+                    "the test listings, per property type (body type for cars). About 3 in 4 real prices fall "
+                    "inside."],
          "facts": [("Retrained", "The 1st of each month. A weekly check on new rentals starts one early if the "
                                  "error goes above 60%."),
                    ("Tracked in", "MLflow: every run with its data version, settings, tuning trials and errors")]},
@@ -521,11 +557,13 @@ def pipeline_steps() -> list[dict]:
          "title": "Serving: endpoints, this app and a dashboard",
          "lead": "The winning version is registered in Unity Catalog as the champion and served by a Model "
                  "Serving endpoint. The endpoint sleeps when idle, so the first estimate of the day can take a "
-                 "few minutes.",
+                 "few minutes. Free Edition allows two endpoints, so the car model has none: this app loads "
+                 "its champion and runs it itself.",
          "points": ["<b>Daily scoring:</b> every morning the champion prices the listings seen in the last 7 days. "
                     "A good deal asks less than the low end of its likely range.",
-                    "<b>Dashboard:</b> prices by month, barrio maps and every listing with its model price.",
-                    "<b>This app:</b> an estimate, its likely range and similar real listings."]},
+                    "<b>Dashboard:</b> prices by month, barrio maps and every listing with its model price, and "
+                    "a used-car page with prices by brand, year and mileage.",
+                    "<b>This app:</b> an estimate, its likely range and similar real listings or cars."]},
     ]
 
 
@@ -566,19 +604,19 @@ def section(title: str, intro: str = ""):
 
 
 def render_about():
-    section("How the data flows", "From two listing websites to the estimate on this page. Pick a step to see "
-                                  "what it does.")
+    section("How the data flows", "From the listing websites and car dealers to the estimates in this app. Pick "
+                                  "a step to see what it does.")
     st.html(pipeline_diagram())
     st.html('<div style="height: 1.5rem"></div>')
     section("How accurate the models are", "The error is the average gap between the estimate and the real asking "
                                            "price, as a share of that price, on listings the model did not see in "
                                            "training. Lower is better.")
-    for column, mode in zip(st.columns(2, gap="medium"), MODES, strict=True):
+    for column, mode in zip(st.columns(3, gap="medium"), MODELS, strict=True):
         with column, st.container(border=True, key=f"card-model-{mode}"):
             try:
                 model_card(mode)
             except Exception as error:  # noqa: BLE001
-                st.warning(f"Could not load the {MODES[mode]['label'].lower()} model metrics: {error}")
+                st.warning(f"Could not load the {MODELS[mode]['label'].lower()} model metrics: {error}")
     st.html('<div style="height: 1.5rem"></div>')
     section("Limits")
     st.html(
@@ -589,27 +627,182 @@ def render_about():
         "<li>Medellin, Envigado and Sabaneta have been collected since November 2026, so their estimates rest on "
         "a few hundred listings each.</li>"
         "<li>The sale model started in November 2026 with one day of data. Its error will be clearer once there "
-        "are a few months of history.</li></ul>"
+        "are a few months of history.</li>"
+        "<li>Used cars come from six dealers, collected since 23 November 2026. Their model is tested on a random "
+        "1 in 5 of the same day's cars, so its error is likely too low for now.</li></ul>"
     )
 
 
-st.set_page_config(page_title="Property price estimator", page_icon=":material/apartment:", layout="wide")
+def car_label(text: str) -> str:
+    """'mazda' -> 'Mazda', 'cx-5' -> 'CX-5', 'bmw' -> 'BMW'. Values are cleaned to lowercase in silver."""
+    return " ".join(w.upper() if w in CAR_ACRONYMS or any(c.isdigit() for c in w) else w.capitalize()
+                    for w in str(text).split())
+
+
+@st.cache_resource(ttl=6 * 3600, show_spinner="Loading the car model...")
+def car_model():
+    """The champion car model from Unity Catalog, reloaded every 6 hours to pick up a new champion."""
+    import mlflow  # only the car tab needs it
+
+    mlflow.set_tracking_uri("databricks")
+    mlflow.set_registry_uri("databricks-uc")
+    return mlflow.pyfunc.load_model(f"models:/{VEHICLE['model']}@{CHAMPION}")
+
+
+@st.cache_data(ttl=6 * 3600, show_spinner="Loading cars...")
+def load_cars() -> pd.DataFrame:
+    """How many cars of each brand, line, year and specs each dealer has: the form's options and defaults."""
+    rows = run_sql(
+        "SELECT source, city, brand, line, year, transmission, fuel, body_type, engine_cc, COUNT(*) AS n "
+        f"FROM {VEHICLE['listings']} WHERE brand IS NOT NULL AND line IS NOT NULL GROUP BY ALL"
+    )
+    return rows.assign(**{c: pd.to_numeric(rows[c]) for c in ["year", "engine_cc", "n"]})
+
+
+def most_common(cars: pd.DataFrame, column: str):
+    """The value of a column shared by the most cars, or None if no car has one."""
+    counts = cars.dropna(subset=[column]).groupby(column)["n"].sum()
+    return counts.idxmax() if not counts.empty else None
+
+
+def by_count(cars: pd.DataFrame, column: str) -> list:
+    """Values of a column, most cars first."""
+    return cars.dropna(subset=[column]).groupby(column)["n"].sum().sort_values(ascending=False).index.tolist()
+
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def similar_cars(brand: str, line: str, year: int, km: float) -> pd.DataFrame:
+    """Up to 5 cars of the same brand and line, closest year first, then closest mileage."""
+    rows = run_sql(
+        "SELECT g.year, g.km, g.version, g.transmission, g.fuel, g.source, g.last_price_cop, g.last_seen_date, "
+        "g.url, COALESCE(p.good_deal, false) AS good_deal "
+        f"FROM {VEHICLE['listings']} g LEFT JOIN {VEHICLE['predictions']} p "
+        "ON p.source = g.source AND p.listing_id = g.listing_id "
+        "WHERE g.brand = :brand AND g.line = :line "
+        "ORDER BY ABS(g.year - :year) NULLS LAST, ABS(g.km - :km) NULLS LAST, g.last_seen_date DESC LIMIT 5",
+        brand=brand, line=line, year=year, km=km,
+    )
+    return rows.assign(**{c: pd.to_numeric(rows[c]) for c in ["year", "km", "last_price_cop"]})
+
+
+def car_card(row) -> str:
+    """One similar car as HTML. Text comes from scraped pages, so it is escaped."""
+    facts = [f"{row.year:.0f}" if pd.notna(row.year) else "Year unknown",
+             f"{row.km:,.0f} km" if pd.notna(row.km) else "Mileage unknown"]
+    specs = [car_label(v) for v in (row.transmission, row.fuel) if v]
+    seen = pd.Timestamp(row.last_seen_date).strftime("%-d %b %Y")
+    deal = '<div class="deal">Good deal</div>' if row.good_deal == "true" else ""
+    version = f"{html.escape(row.version)}<br>" if row.version else ""
+    return (
+        f'<div class="card-price">{cop(row.last_price_cop)}</div>{deal}'
+        f'<div class="card-facts">{version}{" · ".join(nowrap(f) for f in facts)}<br>'
+        f'{" · ".join(nowrap(f) for f in specs)}</div>'
+        f'<div class="card-seen">{html.escape(car_label(row.source))} · last seen {seen}</div>'
+    )
+
+
+def render_cars():
+    """The "Car price" tab: a used car in, an estimate, its likely range and similar cars out."""
+    cars = load_cars()
+    if cars.empty:
+        st.info("No used cars collected yet.")
+        return
+    inputs, results = st.columns([5, 7], gap="large")
+    with inputs, st.container(border=True, key="card-car-inputs"):
+        st.html('<div class="label">The car</div>')
+        brand = st.selectbox("Brand", sorted(cars["brand"].unique()), format_func=car_label,
+                             index=sorted(cars["brand"].unique()).index(most_common(cars, "brand")))
+        of_brand = cars[cars["brand"] == brand]
+        line = st.selectbox("Line", by_count(of_brand, "line"), format_func=car_label,
+                            help="Lines of this brand found at the dealers, most cars first.")
+        of_line = of_brand[of_brand["line"] == line]
+        col1, col2 = st.columns(2)
+        typical_year = int(most_common(of_line, "year") or 2019)
+        year = col1.number_input("Model year", min_value=1990, max_value=pd.Timestamp.now().year + 1,
+                                 value=typical_year)
+        km = col2.number_input("Mileage (km)", min_value=0, max_value=500_000, value=50_000, step=5_000)
+        city = st.selectbox("City", by_count(cars, "city"), format_func=lambda c: CITIES.get(c, c.capitalize()))
+        col3, col4 = st.columns(2)
+        options = {c: by_count(of_line, c) or by_count(cars, c) for c in ["transmission", "fuel", "body_type"]}
+        transmission = col3.selectbox("Transmission", options["transmission"], format_func=car_label)
+        fuel = col4.selectbox("Fuel", options["fuel"], format_func=car_label)
+        body_type = st.selectbox("Body type", options["body_type"], format_func=car_label,
+                                 help="The likely range is set per body type.")
+        typical_cc = most_common(of_line, "engine_cc")
+        engine_cc = st.number_input("Engine (cc)", min_value=600, max_value=8000, step=100,
+                                    value=int(typical_cc or 1600)) if st.toggle("Use engine size", value=bool(typical_cc)) else None
+        clicked = st.button(VEHICLE["button"], type="primary", width="stretch", icon=":material/query_stats:")
+
+    if not clicked:
+        with results, st.container(border=True, key="card-car-empty"):
+            st.html(
+                '<div class="label">Estimated car price</div><div class="estimate empty">$&mdash;</div>'
+                f'<p class="note">Describe the car and press <b>{VEHICLE["button"]}</b>. You get a fair asking '
+                "price at a dealer, the range most similar cars fall in, and five real cars like it.</p>"
+            )
+        return
+
+    # The model also learned which dealer listed a car; it gets the dealer with the most cars of this line.
+    record = {"source": most_common(of_line, "source"), "city": city, "brand": brand, "line": line,
+              "transmission": transmission, "fuel": fuel, "body_type": body_type,
+              "year": float(year), "km": float(km), "engine_cc": float(engine_cc) if engine_cc else None}
+    with results, st.spinner("Estimating..."):
+        result = car_model().predict(pd.DataFrame([record])).iloc[0]
+        examples = similar_cars(brand, line, int(year), float(km))
+    estimate, low, high = (rounded(result[k], "vehicle") for k in ("prediction", "low", "high"))
+    name = f"{car_label(brand)} {car_label(line)} {year}"
+    with results, st.container(border=True, key="card-car-result"):
+        st.html(
+            f'<div class="label">Estimated car price</div><div class="estimate">{cop(estimate)}</div>'
+            f'<div class="sub">{VEHICLE["unit"]} · {html.escape(name)} · {km:,} km · {html.escape(car_label(body_type))}</div>'
+        )
+        st.altair_chart(range_chart(estimate, low, high, examples["last_price_cop"].dropna().tolist(), "Similar car"),
+                        width="stretch", theme=None)
+        legend = [f'<span><i style="background:{BAND}"></i>Likely range</span>',
+                  f'<span><i class="tick" style="background:{DEEP_BLUE}"></i>Estimate</span>']
+        legend += [f'<span><i class="dot" style="background:{ORANGE}"></i>Similar cars</span>'] if len(examples) else []
+        st.html(f'<div class="legend">{"".join(legend)}</div>')
+        st.html(
+            f'<p class="note" style="margin-top:.75rem">Likely range <b>{cop(low)}</b> to <b>{cop(high)}</b>. '
+            "About 3 in 4 recent cars of this body type had a real price in this range.</p>"
+        )
+    st.html(f'<div class="label" style="margin-top:2rem">Similar cars: {html.escape(car_label(brand))} '
+            f"{html.escape(car_label(line))}</div>")
+    if examples.empty:
+        st.info(f"No {car_label(brand)} {car_label(line)} at the dealers yet.")
+        return
+    st.caption("Same brand and line; closest year first, then closest mileage. Asking price when last seen. Good "
+               "deal: asks less than the low end of the range the model expects for that car.")
+    for i, (column, row) in enumerate(zip(st.columns(5), examples.itertuples(), strict=False)):
+        with column, st.container(border=True, key=f"card-car-{i}"):
+            st.html(car_card(row))
+            st.link_button("Open listing", row.url, type="tertiary", icon=":material/open_in_new:")
+
+
+st.set_page_config(page_title="Price estimator", page_icon=":material/apartment:", layout="wide")
 st.html(STYLE)
 
 summary = load_summary()
 st.html(
-    '<header class="appbar"><div><h1>Property price estimator</h1>'
-    "<p>Describe a property in Bogota, Medellin, Envigado or Sabaneta to get a fair monthly rent or sale price, "
+    '<header class="appbar"><div><h1>Price estimator</h1>'
+    "<p>Describe a property in Bogota, Medellin, Envigado or Sabaneta, or a used car, to get a fair price, "
     "a likely range and real listings like it.</p></div>"
     f'<div class="status">Updated <b>{summary["updated"]}</b> · <b>{summary["listings"]:,}</b> listings · '
-    f'<b>{summary["zones"]:,}</b> barrios</div></header>'
+    f'<b>{summary["zones"]:,}</b> barrios · <b>{summary["cars"]:,}</b> cars</div></header>'
 )
 FOOTER = (
-    '<footer class="foot"><span>Asking prices from Fincaraiz and Metrocuadrado, collected several times a day.'
-    "</span><span>Estimates are a guide, not an appraisal.</span><span>Built on Databricks.</span></footer>"
+    '<footer class="foot"><span>Asking prices from Fincaraiz and Metrocuadrado, collected several times a day, '
+    "and from six used-car dealers, collected daily.</span><span>Estimates are a guide, not an appraisal.</span>"
+    "<span>Built on Databricks.</span></footer>"
 )
 
-estimate_tab, about_tab = st.tabs(["Estimate a price", "How it was built"], key="tab", on_change="rerun")
+estimate_tab, car_tab, about_tab = st.tabs(["Property price", "Car price", "How it was built"], key="tab",
+                                           on_change="rerun")
+if car_tab.open:
+    with car_tab:
+        render_cars()
+    st.html(FOOTER)
+    st.stop()
 if about_tab.open:
     with about_tab:
         render_about()

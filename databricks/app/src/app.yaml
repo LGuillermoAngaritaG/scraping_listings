@@ -8,3 +8,11 @@ env:
     valueFrom: listings-table
   - name: PREDICTIONS_TABLE
     valueFrom: predictions-table
+  - name: SALE_SERVING_ENDPOINT
+    valueFrom: sale-serving-endpoint
+  - name: SALE_LISTINGS_TABLE
+    valueFrom: sale-listings-table
+  - name: SALE_PREDICTIONS_TABLE
+    valueFrom: sale-predictions-table
+  - name: MLFLOW_EXPERIMENT_ID
+    valueFrom: experiment

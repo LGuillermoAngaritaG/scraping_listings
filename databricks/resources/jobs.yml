@@ -2,7 +2,7 @@ resources:
   jobs:
     daily_refresh:
       name: inmuebles-daily-refresh
-      description: Load new CSV files into bronze, rebuild silver and gold, then price active listings, flag good deals and place neighborhoods on the map.
+      description: Load new CSV files into bronze, rebuild silver and gold, then price active rentals and sales, flag good deals and place neighborhoods on the map.
       # The scrapers upload 7 files a day. One refresh a day is enough.
       # To react to each file instead, replace the schedule with:
       #   trigger: { file_arrival: { url: /Volumes/workspace/inmuebles/csv_diarios/ } }
@@ -13,7 +13,7 @@ resources:
         - environment_key: ml
           spec:
             environment_version: "6"
-            dependencies: [lightgbm, scikit-learn, "mlflow>=3", databricks-sdk]
+            dependencies: [lightgbm, catboost, xgboost, scikit-learn, "mlflow>=3", databricks-sdk]
       tasks:
         - task_key: refresh_pipeline
           pipeline_task:
@@ -28,6 +28,17 @@ resources:
               - --catalog=${var.catalog}
               - --schema=${var.schema}
               - --model-name=${var.model_name}
+        - task_key: score_sale
+          depends_on:
+            - task_key: refresh_pipeline
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/score.py
+            parameters:
+              - --listings=sale
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --model-name=${var.sale_model_name}
         - task_key: locate
           depends_on:
             - task_key: refresh_pipeline
@@ -41,7 +52,7 @@ resources:
 
     retrain:
       name: inmuebles-retrain
-      description: Train a challenger and promote it only if it beats the champion.
+      description: Train a rent and a sale challenger. Each is promoted only if it beats its champion.
       schedule:
         quartz_cron_expression: "0 0 8 1 * ?"  # 1st day of each month
         timezone_id: America/Bogota
@@ -49,7 +60,7 @@ resources:
         - environment_key: ml
           spec:
             environment_version: "6"
-            dependencies: [lightgbm, scikit-learn, "mlflow>=3", databricks-sdk]
+            dependencies: [lightgbm, catboost, xgboost, optuna, scikit-learn, "mlflow>=3", databricks-sdk]
       tasks:
         - task_key: train
           environment_key: ml
@@ -60,6 +71,22 @@ resources:
               - --schema=${var.schema}
               - --model-name=${var.model_name}
               - --endpoint-name=${var.endpoint_name}
+              - --experiment=${resources.experiments.rent_price.name}
+        - task_key: train_sale
+          # After the rent task, not beside it: two endpoint updates at once go over the
+          # Free Edition serving quota. ALL_DONE: sales still train if rent fails.
+          depends_on:
+            - task_key: train
+          run_if: ALL_DONE
+          environment_key: ml
+          spark_python_task:
+            python_file: ../src/ml/train.py
+            parameters:
+              - --listings=sale
+              - --catalog=${var.catalog}
+              - --schema=${var.schema}
+              - --model-name=${var.sale_model_name}
+              - --endpoint-name=${var.sale_endpoint_name}
               - --experiment=${resources.experiments.rent_price.name}
 
     monitor:
@@ -72,7 +99,7 @@ resources:
         - environment_key: ml
           spec:
             environment_version: "6"
-            dependencies: [lightgbm, scikit-learn, "mlflow>=3", databricks-sdk]
+            dependencies: [lightgbm, catboost, xgboost, scikit-learn, "mlflow>=3", databricks-sdk]
       tasks:
         - task_key: monitor
           environment_key: ml
@@ -93,7 +120,7 @@ resources:
         - environment_key: ml
           spec:
             environment_version: "6"
-            dependencies: [lightgbm, scikit-learn, "mlflow>=3", matplotlib]
+            dependencies: [lightgbm, catboost, xgboost, scikit-learn, "mlflow>=3", matplotlib]
       tasks:
         - task_key: backtest
           environment_key: ml

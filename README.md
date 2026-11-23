@@ -99,23 +99,35 @@ scrapers:
         xpath: //div[@class="property-price-tag"]//p[@class="main-price"]/text()
 ```
 
+Each site has one full entry. The other searches (other cities, sales) reuse its XPaths with a YAML merge key and change only the name and the URL. Names follow `<site>-<city>-<leasing|sale>`; the pipeline reads the city and the operation from them.
+
+```yaml
+  - <<: *fincaraiz
+    name: fincaraiz-medellin-sale
+    pages_url: https://www.fincaraiz.com.co/venta/medellin/antioquia
+```
+
 ## GitHub Actions Automation
 
-Two workflows run scrapers automatically:
+Two workflows run scrapers automatically, each with 8 searches (rent and sale in Bogota, Medellin, Envigado and Sabaneta). Each search runs as its own parallel job:
 
 - **Fincaraiz**: Every 6 hours (see `.github/workflows/scrape-fincaraiz.yml`)
 - **Metrocuadrado**: Every 8 hours (see `.github/workflows/scrape-metrocuadrado.yml`)
 
 Scraped data is:
-- Automatically committed and pushed to the `data/` directory
+- Committed and pushed to the `data/` directory by one final job per run
 - Uploaded as artifacts (30-day retention)
 - Uploaded to a Databricks volume, when the `DATABRICKS_HOST` and `DATABRICKS_TOKEN` secrets exist
 
-## Rent Price Prediction on Databricks
+## Rent and Sale Price Prediction on Databricks
 
-The scraped rentals feed a Databricks pipeline (bronze, silver, gold), a LightGBM rent model with
-champion/challenger promotion, a serving endpoint, a dashboard and a Streamlit app.
-See [databricks/README.md](databricks/README.md) for the architecture, decisions and setup.
+The scraped listings feed a Databricks pipeline (bronze, silver, gold), two price models (rent and
+sale, each the best of three tuned model types or their average) with champion/challenger promotion,
+two serving endpoints, a dashboard and a Streamlit app.
+See [databricks/README.md](databricks/README.md) for the architecture, decisions, setup and
+[screenshots of it running on Databricks](databricks/README.md#running-on-databricks).
+
+![Databricks App estimate](databricks/docs/screenshots/app-estimate.png)
 
 ### Manual Trigger
 

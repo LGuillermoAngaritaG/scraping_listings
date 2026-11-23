@@ -1,5 +1,6 @@
 scrapers:
-  - name: fincaraiz-bogota-leasing
+  - &fincaraiz
+    name: fincaraiz-bogota-leasing
     scrapying_engine: scrapy
     description: Scraping leasing properties from Fincaraiz in Envigado.
     number_of_pages: 5
@@ -24,7 +25,8 @@ scrapers:
         xpath_names: //*[@id="__next"]//div[contains(@class,"technical-sheet")]//span[@class="ant-typography"]/text()
         xpath_values: //*[@id="__next"]//div[2]/div/div/div/div[3]//text()
 
-  - name: metrocuadrado-bogota-leasing
+  - &metrocuadrado
+    name: metrocuadrado-bogota-leasing
     scrapying_engine: playwright
     description: Scraping leasing properties from Metrocuadrado in Bogota.
     number_of_pages: 2
@@ -51,6 +53,77 @@ scrapers:
         xpath_names: //pt-accordion/div/pt-tag/text()
         xpath_values: "true"
       
+  # The other searches reuse the XPaths above (YAML merge key <<).
+  - <<: *fincaraiz
+    name: fincaraiz-medellin-leasing
+    description: Scraping leasing properties from Fincaraiz in Medellin.
+    pages_url: https://www.fincaraiz.com.co/arriendo/medellin/antioquia
+
+  - <<: *fincaraiz
+    name: fincaraiz-envigado-leasing
+    description: Scraping leasing properties from Fincaraiz in Envigado.
+    pages_url: https://www.fincaraiz.com.co/arriendo/envigado/antioquia
+
+  - <<: *fincaraiz
+    name: fincaraiz-sabaneta-leasing
+    description: Scraping leasing properties from Fincaraiz in Sabaneta.
+    pages_url: https://www.fincaraiz.com.co/arriendo/sabaneta/antioquia
+
+  - <<: *fincaraiz
+    name: fincaraiz-medellin-sale
+    description: Scraping sale properties from Fincaraiz in Medellin.
+    pages_url: https://www.fincaraiz.com.co/venta/medellin/antioquia
+
+  - <<: *fincaraiz
+    name: fincaraiz-envigado-sale
+    description: Scraping sale properties from Fincaraiz in Envigado.
+    pages_url: https://www.fincaraiz.com.co/venta/envigado/antioquia
+
+  - <<: *fincaraiz
+    name: fincaraiz-sabaneta-sale
+    description: Scraping sale properties from Fincaraiz in Sabaneta.
+    pages_url: https://www.fincaraiz.com.co/venta/sabaneta/antioquia
+
+  - <<: *fincaraiz
+    name: fincaraiz-bogota-sale
+    description: Scraping sale properties from Fincaraiz in Bogota.
+    pages_url: https://www.fincaraiz.com.co/venta/bogota/bogota-dc
+
+  - <<: *metrocuadrado
+    name: metrocuadrado-medellin-leasing
+    description: Scraping leasing properties from Metrocuadrado in Medellin.
+    pages_url: https://www.metrocuadrado.com/inmuebles/arriendo/medellin
+
+  - <<: *metrocuadrado
+    name: metrocuadrado-envigado-leasing
+    description: Scraping leasing properties from Metrocuadrado in Envigado.
+    pages_url: https://www.metrocuadrado.com/inmuebles/arriendo/envigado
+
+  - <<: *metrocuadrado
+    name: metrocuadrado-sabaneta-leasing
+    description: Scraping leasing properties from Metrocuadrado in Sabaneta.
+    pages_url: https://www.metrocuadrado.com/inmuebles/arriendo/sabaneta
+
+  - <<: *metrocuadrado
+    name: metrocuadrado-medellin-sale
+    description: Scraping sale properties from Metrocuadrado in Medellin.
+    pages_url: https://www.metrocuadrado.com/inmuebles/venta/medellin
+
+  - <<: *metrocuadrado
+    name: metrocuadrado-envigado-sale
+    description: Scraping sale properties from Metrocuadrado in Envigado.
+    pages_url: https://www.metrocuadrado.com/inmuebles/venta/envigado
+
+  - <<: *metrocuadrado
+    name: metrocuadrado-sabaneta-sale
+    description: Scraping sale properties from Metrocuadrado in Sabaneta.
+    pages_url: https://www.metrocuadrado.com/inmuebles/venta/sabaneta
+
+  - <<: *metrocuadrado
+    name: metrocuadrado-bogota-sale
+    description: Scraping sale properties from Metrocuadrado in Bogota.
+    pages_url: https://www.metrocuadrado.com/inmuebles/venta/bogota
+
   - name: mercado-libre-bogota-leasing
     scrapying_engine: playwright
     description: Scraping leasing properties from Mercado Libre in Bogota.

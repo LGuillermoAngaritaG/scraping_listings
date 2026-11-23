@@ -1,23 +1,33 @@
-"""Model code shared by training, backtest and monitoring.
+"""Model code shared by training, backtest and monitoring, for the rent and the sale model.
 
 Plain pandas and scikit-learn, so the tests can run it without Databricks.
 """
 
 import numpy as np
 import pandas as pd
+from catboost import CatBoostRegressor
 from lightgbm import LGBMRegressor
 from sklearn.compose import ColumnTransformer, TransformedTargetRegressor
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import OrdinalEncoder
+from sklearn.preprocessing import FunctionTransformer, OrdinalEncoder
+from xgboost import XGBRegressor
 
 TARGET = "price_cop"
 DATE = "first_seen_date"
-CATEGORICAL = ["source", "property_type", "neighborhood"]
+# City and neighborhood together: "la castellana" is a barrio in Bogota and in Medellin.
+CATEGORICAL = ["source", "city", "property_type", "neighborhood"]
 NUMERIC = ["area_m2", "bedrooms", "bathrooms", "parking", "estrato", "age_years"]
 FEATURES = CATEGORICAL + NUMERIC
 
 CHAMPION = "campeon"
 CHALLENGER = "retador"
+
+# The model types the monthly search tunes. Random forest, a linear model and a small neural
+# net were tried too (Nov 2026): each was worse alone and made the average worse.
+FAMILIES = ("lightgbm", "catboost", "xgboost")
+# Fixed LightGBM settings, used before the search (up to rent version 4) and by the backtest.
+LIGHTGBM_DEFAULTS = {"n_estimators": 600, "learning_rate": 0.03, "num_leaves": 31, "min_child_samples": 20,
+                     "subsample": 0.8, "colsample_bytree": 0.8}
 
 
 def prepare(listings: pd.DataFrame) -> pd.DataFrame:
@@ -38,40 +48,81 @@ def temporal_split(df: pd.DataFrame, test_days: int):
     return df[df[DATE] <= cutoff], df[df[DATE] > cutoff], cutoff
 
 
-def build_model(seed: int = 42) -> TransformedTargetRegressor:
-    """LightGBM on log(price). Text columns become integer codes; unknown values get -1."""
-    encode = ColumnTransformer(
-        [
-            (
-                "categorical",
-                OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1),
-                CATEGORICAL,
-            )
-        ],
-        remainder="passthrough",
-    )
-    lgbm = LGBMRegressor(
-        n_estimators=600,
-        learning_rate=0.03,
-        num_leaves=31,
-        min_child_samples=20,
-        subsample=0.8,
-        subsample_freq=1,
-        colsample_bytree=0.8,
-        random_state=seed,
-        verbose=-1,
-    )
+def split(df: pd.DataFrame, test_days: int, seed: int = 42):
+    """(train, test, cutoff, kind), decided city by city.
+
+    A city whose data covers 2 x test_days is tested on its listings first seen in the last
+    test_days. A newer city has no past to train on (all sales in their first weeks, a city
+    just added to the scrapers), so a random 1 in 5 of its listings is the test and the rest
+    is trained on. Otherwise no model would learn a new city until it is test_days old.
+    kind is "temporal", "random" (every city is new) or "mixed".
+    """
+    dates = df.groupby("city")[DATE]
+    new_city = (dates.transform("max") - dates.transform("min")) < pd.Timedelta(days=2 * test_days)
+    if new_city.all():
+        cutoff, kind = df[DATE].max(), "random"
+    else:  # from the last day of the old cities: newer cities can have later days
+        cutoff = df.loc[~new_city, DATE].max() - pd.Timedelta(days=test_days)
+        kind = "mixed" if new_city.any() else "temporal"
+    recent = df[~new_city & (df[DATE] > cutoff)]
+    sampled = df[new_city].sample(n=int(new_city.sum()) // 5, random_state=seed)
+    test = pd.concat([recent, sampled])
+    return df.drop(test.index), test, cutoff, kind
+
+
+def build_model(family: str = "lightgbm", params: dict | None = None, seed: int = 42) -> TransformedTargetRegressor:
+    """One model type on log(price), as a pipeline: encode, then the model.
+
+    LightGBM and XGBoost get text columns as integer codes, with -1 for a value not seen in
+    training. CatBoost takes the text itself. Without params, LightGBM gets LIGHTGBM_DEFAULTS
+    and the others their library defaults.
+    """
+    params = dict(params or {})
+    if family == "lightgbm":
+        model = LGBMRegressor(**{**LIGHTGBM_DEFAULTS, **params}, subsample_freq=1, random_state=seed, verbose=-1)
+    elif family == "xgboost":
+        model = XGBRegressor(**params, tree_method="hist", random_state=seed)
+    elif family == "catboost":
+        # A tuple: CatBoost copies a list, and then scikit-learn cannot clone the model.
+        model = CatBoostRegressor(**params, cat_features=tuple(CATEGORICAL), random_seed=seed, verbose=0,
+                                  allow_writing_files=False)
+    else:
+        raise ValueError(f"unknown model type {family}")
+    if family == "catboost":
+        encode = FunctionTransformer()  # keeps the table as it is
+    else:
+        encode = ColumnTransformer(
+            [("categorical", OrdinalEncoder(handle_unknown="use_encoded_value", unknown_value=-1), CATEGORICAL)],
+            remainder="passthrough",
+        )
     return TransformedTargetRegressor(
-        regressor=Pipeline([("encode", encode), ("lgbm", lgbm)]),
-        func=np.log,
-        inverse_func=np.exp,
+        regressor=Pipeline([("encode", encode), ("model", model)]), func=np.log, inverse_func=np.exp
     )
+
+
+class Blend:
+    """Average of several models on the log scale: the geometric mean of their prices.
+
+    Models that make different mistakes cancel part of them out.
+    """
+
+    def __init__(self, models: list):
+        self.models = models
+
+    def fit(self, X, y):
+        for model in self.models:
+            model.fit(X, y)
+        return self
+
+    def predict(self, X) -> np.ndarray:
+        return np.exp(np.mean([np.log(model.predict(X)) for model in self.models], axis=0))
 
 
 def baseline_predict(train: pd.DataFrame, test: pd.DataFrame) -> np.ndarray:
-    """Median price of the neighborhood in the training data, else the overall median."""
-    by_zone = train.groupby("neighborhood")[TARGET].median()
-    return test["neighborhood"].map(by_zone).fillna(train[TARGET].median()).to_numpy()
+    """Median price of the neighborhood (in its city) in the training data, else the overall median."""
+    by_zone = train.groupby(["city", "neighborhood"])[TARGET].median().rename("zone_median")
+    zone = test[["city", "neighborhood"]].join(by_zone, on=["city", "neighborhood"])["zone_median"]
+    return zone.fillna(train[TARGET].median()).to_numpy()
 
 
 def metrics(y_true, y_pred) -> dict:

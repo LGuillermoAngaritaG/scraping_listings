@@ -1,6 +1,6 @@
 import pytest
 
-from locate import Locator, city_sectors, contains, load_points, norm
+from locate import LOCALIDADES, Locator, city_sectors, contains, in_town, load_points, norm
 
 
 def square(lat, lon, size=0.01):
@@ -30,7 +30,7 @@ OSM = {"elements": [
 
 @pytest.fixture(scope="module")
 def locator():
-    return Locator(load_points(city_sectors(SECTORS), OSM))
+    return Locator(load_points(city_sectors(SECTORS), OSM), LOCALIDADES)
 
 
 @pytest.mark.parametrize("name, expected, rule", [
@@ -76,3 +76,25 @@ def test_center_of_a_square(locator):
 
 def test_norm():
     assert norm("  Chicó  Norte-II ") == "chico norte ii"
+
+
+def test_in_town_uses_the_municipality_outline():
+    towns = [{"properties": {"name": "Envigado", "admin_level": "6"}, "geometry": square(6.15, -75.60, 0.05)},
+             {"properties": {"name": "Comuna 14", "admin_level": "8"}, "geometry": square(6.25, -75.60, 0.05)}]
+    inside = in_town(towns, "envigado")
+    assert inside(6.17, -75.58) and not inside(6.27, -75.58)
+
+
+@pytest.mark.parametrize("name, key", [
+    ("loma del escobero", "vereda el escobero"),
+    ("la doctora", "vereda la doctora"),
+    ("alto de palmas", "vereda palmas"),
+])
+def test_lead_words_do_not_block_a_match(name, key):
+    points = {key: (6.1, -75.6, key, "x"), "lagos de la doctora": (6.1, -75.6, "Lagos de la Doctora", "y")}
+    assert Locator(points).match(name) == (key, "article")
+
+
+@pytest.mark.parametrize("name", ["Medellín", "envigado", "SABANETA"])
+def test_a_city_name_alone_is_not_a_place(locator, name):
+    assert locator.match(name) == (None, "none")

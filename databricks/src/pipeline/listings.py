@@ -14,14 +14,19 @@ RAW_SCHEMA = "url STRING, information STRING, date_time STRING"
 CSV_OPTIONS = {"header": "true", "multiLine": "true", "escape": '"'}
 
 # Rows that break a rule are dropped from silver. Area may be missing:
-# Metrocuadrado did not publish it from Feb to Nov 2026.
+# Metrocuadrado did not publish it from Feb to Nov 2026. A price is a monthly rent
+# (0.2 M to 200 M COP) or a sale price (20 M to 50,000 M COP).
 SILVER_EXPECTATIONS = {
     "valid_property_id": "property_id IS NOT NULL AND property_id != ''",
-    "valid_price": "price_cop IS NOT NULL AND price_cop BETWEEN 200000 AND 200000000",
+    "valid_price": (
+        "price_cop IS NOT NULL AND CASE WHEN operation = 'venta' "
+        "THEN price_cop BETWEEN 20000000 AND 50000000000 ELSE price_cop BETWEEN 200000 AND 200000000 END"
+    ),
     "valid_area": "area_m2 IS NULL OR area_m2 BETWEEN 10 AND 5000",
 }
 
 FEATURE_COLUMNS = [
+    "city",
     "property_type",
     "neighborhood",
     "area_m2",
@@ -108,6 +113,9 @@ def _clean_text(text: Column) -> Column:
     return F.trim(F.regexp_replace(no_accents, r"\s+zona urbana$", ""))
 
 
+OPERATION = r"(?:[Aa]rriendo|[Vv]enta)"
+
+
 def parse_listings(bronze: DataFrame) -> DataFrame:
     """One typed row per scraped listing. Both sites end up with the same columns."""
     info = F.col("information")
@@ -116,13 +124,22 @@ def parse_listings(bronze: DataFrame) -> DataFrame:
 
     # Fincaraiz keeps most fields in a list of {'name': 'value'} pairs, which
     # _value also reads. Metrocuadrado uses lowercase keys.
+    # A project title starts with its name and uses plurals:
+    # 'PATIO LIVING CENTRAL, Apartamentos en Venta en Laureles, Medellín'.
     property_type = F.coalesce(
         _value(info, "Tipo de Inmueble"),
-        F.regexp_extract(title, r"^(.+?)\s+[Ee]n\s+[Aa]rriendo", 1),
+        F.regexp_replace(
+            F.regexp_extract(title, rf"^(?:.*,\s*)?(.+?)\s+[Ee]n\s+{OPERATION}", 1),
+            r"^(Apartamento|Apartaestudio|Casa|Oficina|Bodega|Lote)s$", "$1",
+        ),
     )
+    # Metrocuadrado: 'Casa En Venta, Zuñiga'. Fincaraiz: 'Casa en Arriendo en Lagos de Torca, Bogotá'.
+    # Fincaraiz in Antioquia may name only the city ('Apartamento en Arriendo en Sabaneta');
+    # then the barrio is in the location: 'Monteazul, Antioquia'.
     neighborhood = F.coalesce(
-        F.nullif(F.regexp_extract(title, r"[Ee]n\s+[Aa]rriendo,\s*(.+)$", 1), F.lit("")),
-        F.nullif(F.regexp_extract(title, r"[Ee]n\s+[Aa]rriendo\s+en\s+(.+?),\s*Bogot", 1), F.lit("")),
+        F.nullif(F.regexp_extract(title, rf"[Ee]n\s+{OPERATION},\s*(.+)$", 1), F.lit("")),
+        F.nullif(F.regexp_extract(title, rf"[Ee]n\s+{OPERATION}\s+en\s+(.+?),[^,]*$", 1), F.lit("")),
+        F.nullif(F.regexp_extract(_value(info, "location"), r"^([^,]+),\s*Antioquia$", 1), F.lit("")),
     )
     # First value that is a number: Fincaraiz may write '¡Pregúntale!' for one of them.
     area = F.coalesce(
@@ -132,10 +149,14 @@ def parse_listings(bronze: DataFrame) -> DataFrame:
     )
     estrato = _number(F.coalesce(_value(info, "estrato"), _value(info, "Estrato")), r"(\d)")
 
+    # The file name says which search found the listing: fincaraiz-medellin-sale_details_...csv.
+    # The city is the city searched; each search is rentals (leasing) or sales.
+    file = F.col("source_file")
     return bronze.select(
         "source",
+        F.regexp_extract(file, r"/[a-z]+-([a-z]+)-[^/]*$", 1).alias("city"),
         F.regexp_extract("url", r"/([^/?]+)(?:\?.*)?$", 1).alias("property_id"),
-        F.regexp_extract("url", r"(arriendo|venta)", 1).alias("operation"),
+        F.when(file.rlike(r"-sale_[^/]*$"), "venta").when(file.rlike(r"-leasing_[^/]*$"), "arriendo").alias("operation"),
         F.try_to_timestamp("date_time").alias("scraped_at"),
         F.to_date(F.try_to_timestamp("date_time")).alias("scrape_date"),
         F.nullif(_clean_text(property_type), F.lit("")).alias("property_type"),
@@ -178,8 +199,8 @@ def dedupe_daily(listings: DataFrame) -> DataFrame:
     return listings.withColumn("_rank", F.row_number().over(order)).filter("_rank = 1").drop("_rank")
 
 
-def build_rent_listings(silver: DataFrame) -> DataFrame:
-    """One row per rental listing, ready for training and dashboards.
+def build_listings(silver: DataFrame, operation: str) -> DataFrame:
+    """One row per listing of one operation (arriendo or venta), ready for training and dashboards.
 
     price_cop is the first asking price, so it matches first_seen_date and the
     temporal split never uses a price from the future. Features take the latest
@@ -191,7 +212,7 @@ def build_rent_listings(silver: DataFrame) -> DataFrame:
         return F.max_by(column, when_known).alias(column)
 
     return (
-        silver.filter(F.col("operation") == "arriendo")
+        silver.filter(F.col("operation") == operation)
         .groupBy("source", "property_id")
         .agg(
             F.min("scrape_date").alias("first_seen_date"),

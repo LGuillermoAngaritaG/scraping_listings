@@ -1,4 +1,4 @@
-name: Scrape Fincaraiz Bogota
+name: Scrape Fincaraiz
 
 on:
   push:
@@ -15,7 +15,20 @@ permissions:
 
 jobs:
   scrape:
+    # One job per search (config.yaml), all in parallel.
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # A failing search must not stop the others
+      matrix:
+        scraper:
+          - fincaraiz-bogota-leasing
+          - fincaraiz-medellin-leasing
+          - fincaraiz-envigado-leasing
+          - fincaraiz-sabaneta-leasing
+          - fincaraiz-bogota-sale
+          - fincaraiz-medellin-sale
+          - fincaraiz-envigado-sale
+          - fincaraiz-sabaneta-sale
     env:
       # Upload steps are skipped until these secrets exist in the repository.
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
@@ -50,15 +63,23 @@ jobs:
 
       - name: Run scraper
         run: |
-          scrape fincaraiz-bogota-leasing
+          scrape ${{ matrix.scraper }}
         timeout-minutes: 30
+
+      - name: Collect the files this run created
+        if: always()
+        run: |
+          # Untracked files are the ones this run created.
+          mkdir -p new
+          git ls-files --others --exclude-standard 'data/*.csv' | xargs -r cp -t new/
 
       - name: Upload scraped data
         uses: actions/upload-artifact@v4
         if: always()  # Upload even if scraper fails
         with:
-          name: fincaraiz-data-${{ github.run_number }}
-          path: data/*fincaraiz*.csv
+          name: ${{ matrix.scraper }}
+          path: new/*.csv
+          if-no-files-found: ignore
           retention-days: 30
 
       - name: Set up Databricks CLI
@@ -68,23 +89,43 @@ jobs:
       - name: Upload new CSV files to Databricks volume
         if: always() && env.DATABRICKS_HOST != ''
         run: |
-          # Untracked files are the ones this run created. Only details files feed the pipeline.
-          for f in $(git ls-files --others --exclude-standard 'data/*_details_*.csv'); do
+          # Only details files feed the pipeline.
+          for f in new/*_details_*.csv; do
+            [ -e "$f" ] || continue
             databricks fs cp "$f" "dbfs:${DATABRICKS_VOLUME_PATH}/$(basename "$f")" --overwrite
           done
         continue-on-error: true
 
+  commit:
+    # One commit for all searches, so the parallel jobs do not race to push.
+    needs: scrape
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download the files of every search
+        uses: actions/download-artifact@v4
+        with:
+          path: data
+          merge-multiple: true
+        continue-on-error: true  # No files at all if every search failed
+
       - name: Commit and push scraped data
-        if: always()  # Always attempt to save results
         run: |
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
           git config --local user.name "github-actions[bot]"
-          git pull --rebase origin ${{ github.ref_name }} || true
           git add data/*.csv || true
-          if ! git diff --staged --quiet; then
-            git commit -m "🤖 Auto-scrape: Fincaraiz data - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-            git push origin ${{ github.ref_name }} || echo "Failed to push, but data is saved in artifacts"
-          else
+          if git diff --staged --quiet; then
             echo "No new data to commit"
+            exit 0
           fi
+          git commit -m "🤖 Auto-scrape: Fincaraiz data - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
+          # The other site's workflow may push at the same time: rebase and try again.
+          for attempt in 1 2 3 4 5; do
+            git pull --rebase origin ${{ github.ref_name }} && git push origin ${{ github.ref_name }} && exit 0
+            sleep $((attempt * 10))
+          done
+          echo "Failed to push, but data is saved in artifacts"
         continue-on-error: true

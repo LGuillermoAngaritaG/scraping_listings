@@ -19,6 +19,12 @@ variables:
   endpoint_name:
     description: Model Serving endpoint that serves the champion model.
     default: rent-price
+  sale_model_name:
+    description: Unity Catalog model for sale prices.
+    default: workspace.inmuebles.sale_price_model
+  sale_endpoint_name:
+    description: Model Serving endpoint that serves the sale champion model.
+    default: sale-price
   warehouse_id:
     description: SQL warehouse that runs the dashboard queries.
     lookup:

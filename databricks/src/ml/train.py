@@ -1,12 +1,16 @@
 """Train a challenger, compare it with the champion, promote it only if it wins.
 
-Runs as a Databricks job task (spark_python_task). Steps:
+Runs as a Databricks job task (spark_python_task), once for rentals and once for
+sales (--listings), each with its own registered model and endpoint. Steps:
 1. Copy the gold table into a training table and note its Delta version (time travel).
-2. Train the challenger on the past, keep the last `test_days` for testing.
-3. Score baseline, challenger and current champion on the same test rows.
-4. Register the challenger with alias "retador". Move "campeon" to it only if it
+2. Keep the last `test_days` of each city for testing (a random 1 in 5 for a city with
+   less than 2 x test_days of data).
+3. Search the challenger on the rest (model_search.py): tune LightGBM, CatBoost and
+   XGBoost with Optuna on a validation slice, add their average, keep the best.
+4. Score baseline, challenger and current champion on the same test rows.
+5. Register the challenger with alias "retador". Move "campeon" to it only if it
    beats the baseline and the champion (lower MAPE).
-5. Point the serving endpoint at the new champion.
+6. Point the serving endpoint at the new champion.
 
 The registered model returns a price and a likely range (low, high). The range
 comes from the challenger's errors on the test rows, per property type.
@@ -21,11 +25,14 @@ import sys
 HERE = os.path.dirname(os.path.abspath(inspect.currentframe().f_code.co_filename))
 sys.path.insert(0, HERE)
 
+import catboost  # noqa: E402
 import lightgbm  # noqa: E402
 import mlflow  # noqa: E402
 import numpy as np  # noqa: E402
+import optuna  # noqa: E402
 import pandas as pd  # noqa: E402
 import sklearn  # noqa: E402
+import xgboost  # noqa: E402
 from databricks.sdk import WorkspaceClient  # noqa: E402
 from databricks.sdk.service.serving import EndpointCoreConfigInput, ServedEntityInput  # noqa: E402
 from mlflow import MlflowClient  # noqa: E402
@@ -33,25 +40,27 @@ from mlflow.exceptions import MlflowException  # noqa: E402
 from pyspark.sql import SparkSession  # noqa: E402
 
 from banded_model import BandedRentModel  # noqa: E402
+from model_search import search  # noqa: E402
 from rent_model import (  # noqa: E402
     CHALLENGER,
     CHAMPION,
     FEATURES,
     TARGET,
     baseline_predict,
-    build_model,
     error_bands,
     metrics,
     metrics_by,
     point_estimate,
     prepare,
-    temporal_split,
+    split,
 )
 
 # Pinned to the training environment so serving unpickles the same objects.
 PIP_REQUIREMENTS = [
     f"mlflow=={mlflow.__version__}",
     f"lightgbm=={lightgbm.__version__}",
+    f"catboost=={catboost.__version__}",
+    f"xgboost=={xgboost.__version__}",
     f"scikit-learn=={sklearn.__version__}",
     f"pandas=={pd.__version__}",
     f"numpy=={np.__version__}",
@@ -60,24 +69,27 @@ PIP_REQUIREMENTS = [
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--listings", choices=["rent", "sale"], default="rent")
     parser.add_argument("--catalog", required=True)
     parser.add_argument("--schema", required=True)
     parser.add_argument("--model-name", required=True)
     parser.add_argument("--endpoint-name", required=True)
     parser.add_argument("--experiment", required=True)
     parser.add_argument("--test-days", type=int, default=30)
+    parser.add_argument("--trials", type=int, default=30, help="Optuna trials per model type")
     return parser.parse_args()
 
 
-def snapshot_training_data(spark, catalog: str, schema: str):
+def snapshot_training_data(spark, catalog: str, schema: str, listings: str):
     """Copy gold into a plain Delta table and return (table, version).
 
     Materialized views do not support time travel, so the copy is what makes
     `VERSION AS OF` possible later. Old versions are kept for a year.
     """
-    gold = f"{catalog}.{schema}.gold_rent_listings"
-    training = f"{catalog}.{schema}.rent_training_data"
-    spark.read.table(gold).write.mode("overwrite").saveAsTable(training)
+    gold = f"{catalog}.{schema}.gold_{listings}_listings"
+    training = f"{catalog}.{schema}.{listings}_training_data"
+    # overwriteSchema: a new gold column (such as city) must reach the copy too.
+    spark.read.table(gold).write.mode("overwrite").option("overwriteSchema", "true").saveAsTable(training)
     spark.sql(
         f"ALTER TABLE {training} SET TBLPROPERTIES ("
         "'delta.deletedFileRetentionDuration' = 'interval 365 days', "
@@ -98,7 +110,7 @@ def champion_predictions(client: MlflowClient, model_name: str, test):
 
 
 def deploy_endpoint(endpoint_name: str, model_name: str, version: str):
-    """Create the serving endpoint, or move it to the given model version."""
+    """Create the serving endpoint, or move it to the given model version if it serves another one."""
     w = WorkspaceClient()
     served = [
         ServedEntityInput(
@@ -109,6 +121,9 @@ def deploy_endpoint(endpoint_name: str, model_name: str, version: str):
         )
     ]
     if endpoint_name in {e.name for e in w.serving_endpoints.list()}:
+        current = w.serving_endpoints.get(endpoint_name).config.served_entities
+        if current and current[0].entity_version == str(version):
+            return
         w.serving_endpoints.update_config_and_wait(name=endpoint_name, served_entities=served)
     else:
         w.serving_endpoints.create_and_wait(
@@ -122,14 +137,17 @@ def main():
     spark = SparkSession.builder.getOrCreate()
     client = MlflowClient()
     mlflow.set_experiment(args.experiment)
+    optuna.logging.set_verbosity(optuna.logging.WARNING)
 
-    training_table, table_version = snapshot_training_data(spark, args.catalog, args.schema)
+    training_table, table_version = snapshot_training_data(spark, args.catalog, args.schema, args.listings)
     df = prepare(spark.sql(f"SELECT * FROM {training_table} VERSION AS OF {table_version}").toPandas())
-    train, test, cutoff = temporal_split(df, args.test_days)
+    train, test, cutoff, split_kind = split(df, args.test_days)
 
-    with mlflow.start_run(run_name="retrain") as run:
+    with mlflow.start_run(run_name=f"retrain-{args.listings}") as run:
+        mlflow.set_tag("listings", args.listings)
         mlflow.log_params(
             {
+                "split": split_kind,
                 "training_table": training_table,
                 "training_table_version": table_version,
                 "train_cutoff": cutoff.date().isoformat(),
@@ -140,7 +158,13 @@ def main():
         )
 
         baseline = metrics(test[TARGET], baseline_predict(train, test))
-        model = build_model().fit(train[FEATURES], train[TARGET])
+        model, search_report = search(train, args.test_days, args.trials)
+        mlflow.log_params({"model": search_report["winner"], "trials": args.trials,
+                           "valid_rows": search_report["valid_rows"]})
+        for family, params in search_report["params"].items():
+            mlflow.log_params({f"{family}.{k}": v for k, v in params.items()})
+            mlflow.log_table(search_report["trials"][family], f"trials_{family}.json")
+        mlflow.log_metrics({f"valid_mape_{k}": v for k, v in search_report["valid_mape"].items()})
         prediction = model.predict(test[FEATURES])
         challenger = metrics(test[TARGET], prediction)
         mlflow.log_metrics({f"baseline_{k}": v for k, v in baseline.items()})
@@ -158,7 +182,8 @@ def main():
         info = mlflow.pyfunc.log_model(
             name="model",
             python_model=BandedRentModel(model, FEATURES, bands, default_band),
-            code_paths=[os.path.join(HERE, "banded_model.py")],
+            # rent_model.py holds Blend, which the average of the three model types is.
+            code_paths=[os.path.join(HERE, "banded_model.py"), os.path.join(HERE, "rent_model.py")],
             input_example=train[FEATURES].head(5),
             pip_requirements=PIP_REQUIREMENTS,
             registered_model_name=args.model_name,
@@ -183,10 +208,13 @@ def main():
 
         if promote:
             client.set_registered_model_alias(args.model_name, CHAMPION, new_version)
-            deploy_endpoint(args.endpoint_name, args.model_name, new_version)
             print(f"Promoted version {new_version} (run {run.info.run_id}).")
         else:
             print(f"Kept champion version {champion_version}; challenger did not win.")
+        # Also when the champion stays: an endpoint update that failed in an earlier run
+        # (a Free Edition quota, Nov 2026) would otherwise leave it on an older version.
+        if promote or champion_version:
+            deploy_endpoint(args.endpoint_name, args.model_name, new_version if promote else champion_version)
 
 
 if __name__ == "__main__":

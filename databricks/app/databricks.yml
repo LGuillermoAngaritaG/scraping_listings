@@ -1,5 +1,6 @@
-# Separate bundle for the Streamlit app. Deploy it after the first training run,
-# because the serving endpoint it calls is created by that run.
+# Separate bundle for the Streamlit app. Deploy it after the first rent and sale
+# training runs and the first daily scoring, because they create the serving
+# endpoints and the predictions tables it uses.
 bundle:
   name: inmuebles-app
 
@@ -10,15 +11,25 @@ variables:
     default: workspace.inmuebles.gold_rent_listings
   predictions_table:
     default: workspace.inmuebles.rent_predictions
+  sale_endpoint_name:
+    default: sale-price
+  sale_listings_table:
+    default: workspace.inmuebles.gold_sale_listings
+  sale_predictions_table:
+    default: workspace.inmuebles.sale_predictions
   warehouse_id:
     lookup:
       warehouse: Serverless Starter Warehouse
+  # The training experiment (inmuebles-rent-price) of the main bundle. Find yours with:
+  # databricks experiments get-by-name /Users/<you>/inmuebles-rent-price
+  experiment_id:
+    default: "4097044437851749"
 
 resources:
   apps:
     rent_price_app:
       name: rent-price-app
-      description: Estimate the monthly rent of a property in Bogota.
+      description: Estimate the monthly rent or sale price of a property in Bogota, Medellin, Envigado or Sabaneta.
       source_code_path: ./src
       resources:
         - name: serving-endpoint
@@ -41,6 +52,26 @@ resources:
             securable_full_name: ${var.predictions_table}
             securable_type: TABLE
             permission: SELECT
+        # The same three for sales.
+        - name: sale-serving-endpoint
+          serving_endpoint:
+            name: ${var.sale_endpoint_name}
+            permission: CAN_QUERY
+        - name: sale-listings-table
+          uc_securable:
+            securable_full_name: ${var.sale_listings_table}
+            securable_type: TABLE
+            permission: SELECT
+        - name: sale-predictions-table
+          uc_securable:
+            securable_full_name: ${var.sale_predictions_table}
+            securable_type: TABLE
+            permission: SELECT
+        # Read the training runs for the "How it was built" tab.
+        - name: experiment
+          experiment:
+            experiment_id: ${var.experiment_id}
+            permission: CAN_READ
 
 targets:
   free:

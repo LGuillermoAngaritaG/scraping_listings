@@ -1,8 +1,9 @@
 """Daily: price every active listing with the champion model and flag good deals.
 
-Runs as a Databricks job task (spark_python_task) after the pipeline refresh.
-Writes the rent_predictions table, used by the dashboard and the app. A good deal
-asks less than the low end of the likely range the model gives for it.
+Runs as a Databricks job task (spark_python_task) after the pipeline refresh, once
+for rentals and once for sales (--listings). Writes rent_predictions or
+sale_predictions, used by the dashboard and the app. A good deal asks less than
+the low end of the likely range the model gives for it.
 """
 
 import argparse
@@ -24,6 +25,7 @@ from rent_model import CHAMPION, DATE, FEATURES, good_deals, point_estimate, pre
 
 def parse_args():
     parser = argparse.ArgumentParser()
+    parser.add_argument("--listings", choices=["rent", "sale"], default="rent")
     parser.add_argument("--catalog", required=True)
     parser.add_argument("--schema", required=True)
     parser.add_argument("--model-name", required=True)
@@ -44,7 +46,7 @@ def main():
     model = mlflow.pyfunc.load_model(f"models:/{args.model_name}@{CHAMPION}")
     train_cutoff = champion.tags.get("train_cutoff")
 
-    df = prepare(spark.read.table(f"{prefix}.gold_rent_listings").toPandas())
+    df = prepare(spark.read.table(f"{prefix}.gold_{args.listings}_listings").toPandas())
     latest = df[DATE].max()
 
     # Active listings: seen by a scraper in the last `active-days`.
@@ -66,7 +68,7 @@ def main():
         spark.createDataFrame(active[columns])
         .write.mode("overwrite")
         .option("overwriteSchema", "true")
-        .saveAsTable(f"{prefix}.rent_predictions")
+        .saveAsTable(f"{prefix}.{args.listings}_predictions")
     )
     print(f"champion v{champion.version}: {len(active)} active listings, {active['good_deal'].sum()} good deals")
 

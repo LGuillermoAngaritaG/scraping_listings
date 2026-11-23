@@ -5,26 +5,32 @@
       "displayName": "Listings",
       "queryLines": [
         "SELECT\n",
-        "  property_id, source, property_type, neighborhood, bedrooms, bathrooms, parking, url,\n",
+        "  property_id, source, city, property_type, neighborhood, bedrooms, bathrooms, parking, url, INITCAP(city) AS city_label,\n",
         "  first_seen_date, last_seen_date, days_seen,\n",
         "  price_cop, last_price_cop, price_per_m2, area_m2,\n",
         "  COALESCE(CAST(estrato AS STRING), 'unknown') AS estrato_label,\n",
         "  CASE WHEN bedrooms IS NULL THEN 'unknown' WHEN bedrooms >= 5 THEN '5+' ELSE CAST(bedrooms AS STRING) END AS bedrooms_label,\n",
         "  CASE WHEN last_seen_date >= date_sub(current_date(), 7) THEN 1 ELSE 0 END AS still_listed,\n",
-        "  LEAST(price_cop / 1e6, 30) AS rent_millions_capped,\n",
-        "  CASE WHEN area_m2 <= 400 AND price_cop <= 30000000 THEN area_m2 END AS area_m2_chart,\n",
-        "  CASE WHEN area_m2 <= 400 AND price_cop <= 30000000 THEN price_cop / 1e6 END AS rent_millions_chart,\n",
+        "  LEAST(price_cop / 1e6, 30) AS price_millions_capped,\n",
+        "  CASE WHEN area_m2 <= 400 AND price_cop <= 30e6 THEN area_m2 END AS area_m2_chart,\n",
+        "  CASE WHEN area_m2 <= 400 AND price_cop <= 30e6 THEN price_cop / 1e6 END AS price_millions_chart,\n",
         "  CASE WHEN good_deal THEN 'Good deals only' ELSE 'Other listings' END AS deal_filter,\n",
-        "  CASE WHEN good_deal THEN 'Good deal' ELSE '' END AS deal_label,\n",
-        "  sector_code, barrio, shape\n",
+        "  CASE WHEN good_deal THEN 'Good deal' ELSE '' END AS deal_label, predicted_price_cop,\n",
+        "  sector_code, barrio,\n",
+        "  CASE WHEN city = 'bogota' THEN shape END AS shape_bogota,\n",
+        "  CASE WHEN city <> 'bogota' THEN shape END AS shape_aburra\n",
         "FROM gold_rent_listings\n",
-        "LEFT JOIN (SELECT source AS deal_source, property_id AS deal_id, good_deal FROM rent_predictions) d\n",
+        "-- Daily model price and good-deal flag (score.py). Only listings seen in the last 7 days are scored.\n",
+        "LEFT JOIN (SELECT source AS deal_source, property_id AS deal_id, good_deal, predicted_price_cop\n",
+        "    FROM rent_predictions) d\n",
         "  ON d.deal_source = source AND d.deal_id = property_id\n",
-        "LEFT JOIN (SELECT neighborhood AS loc_neighborhood, sector_code FROM neighborhood_locations) loc\n",
-        "  ON loc.loc_neighborhood = neighborhood\n",
-        "LEFT JOIN (SELECT sector_code AS shape_code, sector_name AS barrio,\n",
+        "-- Barrio of each neighborhood name in its city, and its outline (locate.py, daily).\n",
+        "-- Outlines are simplified to about 10 m so the maps load fast.\n",
+        "LEFT JOIN (SELECT city AS loc_city, neighborhood AS loc_neighborhood, sector_code FROM neighborhood_locations) loc\n",
+        "  ON loc.loc_city = city AND loc.loc_neighborhood = neighborhood\n",
+        "LEFT JOIN (SELECT city AS shape_city, sector_code AS shape_code, sector_name AS barrio,\n",
         "    ST_Simplify(ST_GeomFromGeoJSON(geojson), 0.0001) AS shape FROM barrio_shapes) s\n",
-        "  ON s.shape_code = loc.sector_code\n",
+        "  ON s.shape_city = city AND s.shape_code = loc.sector_code\n",
         "ORDER BY last_seen_date DESC, first_seen_date DESC\n"
       ],
       "columns": [
@@ -45,6 +51,58 @@
           "expression": "LEAST(MEDIAN(`price_cop`), 8000000)"
         }
       ]
+    },
+    {
+      "name": "sale_listings",
+      "displayName": "Sale listings",
+      "queryLines": [
+        "SELECT\n",
+        "  property_id, source, city, property_type, neighborhood, bedrooms, bathrooms, parking, url, INITCAP(city) AS city_label,\n",
+        "  first_seen_date, last_seen_date, days_seen,\n",
+        "  price_cop, last_price_cop, price_per_m2, area_m2,\n",
+        "  COALESCE(CAST(estrato AS STRING), 'unknown') AS estrato_label,\n",
+        "  CASE WHEN bedrooms IS NULL THEN 'unknown' WHEN bedrooms >= 5 THEN '5+' ELSE CAST(bedrooms AS STRING) END AS bedrooms_label,\n",
+        "  CASE WHEN last_seen_date >= date_sub(current_date(), 7) THEN 1 ELSE 0 END AS still_listed,\n",
+        "  LEAST(price_cop / 1e6, 3000) AS price_millions_capped,\n",
+        "  CASE WHEN area_m2 <= 400 AND price_cop <= 3000e6 THEN area_m2 END AS area_m2_chart,\n",
+        "  CASE WHEN area_m2 <= 400 AND price_cop <= 3000e6 THEN price_cop / 1e6 END AS price_millions_chart,\n",
+        "  CASE WHEN good_deal THEN 'Good deals only' ELSE 'Other listings' END AS deal_filter,\n",
+        "  CASE WHEN good_deal THEN 'Good deal' ELSE '' END AS deal_label, predicted_price_cop,\n",
+        "  sector_code, barrio,\n",
+        "  CASE WHEN city = 'bogota' THEN shape END AS shape_bogota,\n",
+        "  CASE WHEN city <> 'bogota' THEN shape END AS shape_aburra\n",
+        "FROM gold_sale_listings\n",
+        "-- Daily model price and good-deal flag (score.py). Only listings seen in the last 7 days are scored.\n",
+        "LEFT JOIN (SELECT source AS deal_source, property_id AS deal_id, good_deal, predicted_price_cop\n",
+        "    FROM sale_predictions) d\n",
+        "  ON d.deal_source = source AND d.deal_id = property_id\n",
+        "-- Barrio of each neighborhood name in its city, and its outline (locate.py, daily).\n",
+        "-- Outlines are simplified to about 10 m so the maps load fast.\n",
+        "LEFT JOIN (SELECT city AS loc_city, neighborhood AS loc_neighborhood, sector_code FROM neighborhood_locations) loc\n",
+        "  ON loc.loc_city = city AND loc.loc_neighborhood = neighborhood\n",
+        "LEFT JOIN (SELECT city AS shape_city, sector_code AS shape_code, sector_name AS barrio,\n",
+        "    ST_Simplify(ST_GeomFromGeoJSON(geojson), 0.0001) AS shape FROM barrio_shapes) s\n",
+        "  ON s.shape_city = city AND s.shape_code = loc.sector_code\n",
+        "ORDER BY last_seen_date DESC, first_seen_date DESC\n"
+      ],
+      "columns": [
+        {
+          "displayName": "Listings",
+          "expression": "COUNT(`property_id`)"
+        },
+        {
+          "displayName": "Median price",
+          "expression": "MEDIAN(`price_cop`)"
+        },
+        {
+          "displayName": "Median price per m2",
+          "expression": "MEDIAN(`price_per_m2`)"
+        },
+        {
+          "displayName": "Median price for map",
+          "expression": "LEAST(MEDIAN(`price_cop`), 2000000000)"
+        }
+      ]
     }
   ],
   "pages": [
@@ -59,16 +117,59 @@
             "name": "header",
             "multilineTextboxSpec": {
               "lines": [
-                "# Bogota rental market\n",
+                "# Rental market\n",
                 "\n",
-                "Rental listings from Fincaraiz and Metrocuadrado, scraped daily since October 2025. Every number, chart and table follows the filters."
+                "Rental listings from Fincaraiz and Metrocuadrado in Bogota, Medellin, Envigado and Sabaneta."
               ]
             }
           },
           "position": {
             "x": 0,
             "y": 0,
-            "width": 6,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter-city",
+            "queries": [
+              {
+                "name": "listings_city_label",
+                "query": {
+                  "datasetName": "listings",
+                  "fields": [
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City",
+                    "queryName": "listings_city_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "City"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
             "height": 2
           }
         },
@@ -672,10 +773,10 @@
                 },
                 "y": {
                   "fieldName": "measure(Median rent)",
+                  "displayName": "Median rent",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Median rent",
                   "format": {
                     "type": "number-currency",
                     "currencyCode": "COP",
@@ -712,8 +813,8 @@
                   "datasetName": "listings",
                   "fields": [
                     {
-                      "name": "bin(rent_millions_capped, binWidth=1)",
-                      "expression": "BIN_FLOOR(`rent_millions_capped`, 1)"
+                      "name": "bin(price_millions_capped, binWidth=1)",
+                      "expression": "BIN_FLOOR(`price_millions_capped`, 1)"
                     },
                     {
                       "name": "count(*)",
@@ -729,7 +830,7 @@
               "widgetType": "histogram",
               "encodings": {
                 "x": {
-                  "fieldName": "bin(rent_millions_capped, binWidth=1)",
+                  "fieldName": "bin(price_millions_capped, binWidth=1)",
                   "scale": {
                     "type": "quantitative"
                   },
@@ -805,10 +906,10 @@
                 },
                 "y": {
                   "fieldName": "measure(Median rent)",
+                  "displayName": "Median rent",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Median rent",
                   "format": {
                     "type": "number-currency",
                     "currencyCode": "COP",
@@ -880,10 +981,10 @@
                 },
                 "y": {
                   "fieldName": "measure(Median rent per m2)",
+                  "displayName": "Median rent per m²",
                   "scale": {
                     "type": "quantitative"
                   },
-                  "displayName": "Median rent per m²",
                   "format": {
                     "type": "number-currency",
                     "currencyCode": "COP",
@@ -924,8 +1025,8 @@
                       "expression": "`area_m2_chart`"
                     },
                     {
-                      "name": "rent_millions_chart",
-                      "expression": "`rent_millions_chart`"
+                      "name": "price_millions_chart",
+                      "expression": "`price_millions_chart`"
                     }
                   ],
                   "disaggregated": true
@@ -944,7 +1045,7 @@
                   "displayName": "Area (m²)"
                 },
                 "y": {
-                  "fieldName": "rent_millions_chart",
+                  "fieldName": "price_millions_chart",
                   "scale": {
                     "type": "quantitative"
                   },
@@ -995,6 +1096,10 @@
                   "datasetName": "listings",
                   "fields": [
                     {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    },
+                    {
                       "name": "sector_code",
                       "expression": "`sector_code`"
                     },
@@ -1004,7 +1109,7 @@
                     },
                     {
                       "name": "shape_geojson",
-                      "expression": "ST_ASGEOJSON(ST_UNION_AGG(`shape`))"
+                      "expression": "ST_ASGEOJSON(ST_UNION_AGG(`shape_bogota`))"
                     },
                     {
                       "name": "measure(Median rent for map)",
@@ -1063,6 +1168,10 @@
                     "displayName": "Barrio"
                   },
                   {
+                    "fieldName": "city_label",
+                    "displayName": "City"
+                  },
+                  {
                     "fieldName": "measure(Median rent)",
                     "displayName": "Real median rent",
                     "format": {
@@ -1083,16 +1192,135 @@
               },
               "frame": {
                 "showTitle": true,
-                "title": "Median rent by barrio",
+                "title": "Median rent by barrio: Bogota",
                 "showDescription": true,
-                "description": "Redder is more expensive; 8 million or more is the darkest red. Hover a barrio for its name. About 1 in 4 listings has a barrio we could not place"
+                "description": "Redder is more expensive; 8 million or more is the darkest red. Hover a barrio for its name. Listings with a barrio name we could not place are left out"
               }
             }
           },
           "position": {
             "x": 0,
             "y": 21,
-            "width": 8,
+            "width": 6,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "barrio-map-aburra",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "listings",
+                  "fields": [
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    },
+                    {
+                      "name": "sector_code",
+                      "expression": "`sector_code`"
+                    },
+                    {
+                      "name": "barrio",
+                      "expression": "`barrio`"
+                    },
+                    {
+                      "name": "shape_geojson",
+                      "expression": "ST_ASGEOJSON(ST_UNION_AGG(`shape_aburra`))"
+                    },
+                    {
+                      "name": "measure(Median rent for map)",
+                      "expression": "MEASURE(`Median rent for map`)"
+                    },
+                    {
+                      "name": "measure(Median rent)",
+                      "expression": "MEASURE(`Median rent`)"
+                    },
+                    {
+                      "name": "count(property_id)",
+                      "expression": "COUNT(`property_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "choropleth-map",
+              "encodings": {
+                "region": {
+                  "regionType": "custom",
+                  "fieldName": "shape_geojson",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "measure(Median rent for map)",
+                  "displayName": "Median rent",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  },
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#fbd96a",
+                        "end": "#b3261e"
+                      }
+                    }
+                  }
+                },
+                "extra": [
+                  {
+                    "fieldName": "barrio",
+                    "displayName": "Barrio"
+                  },
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City"
+                  },
+                  {
+                    "fieldName": "measure(Median rent)",
+                    "displayName": "Real median rent",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "count(property_id)",
+                    "displayName": "Listings"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median rent by barrio: Medellin, Envigado and Sabaneta",
+                "showDescription": true,
+                "description": "Redder is more expensive; 8 million or more is the darkest red. Hover a barrio for its name. Listings with a barrio name we could not place are left out"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 21,
+            "width": 6,
             "height": 10
           }
         },
@@ -1197,9 +1425,9 @@
             }
           },
           "position": {
-            "x": 0,
+            "x": 4,
             "y": 31,
-            "width": 6,
+            "width": 4,
             "height": 8
           }
         },
@@ -1275,9 +1503,9 @@
             }
           },
           "position": {
-            "x": 6,
+            "x": 8,
             "y": 31,
-            "width": 6,
+            "width": 4,
             "height": 8
           }
         },
@@ -1293,6 +1521,10 @@
                     {
                       "name": "neighborhood",
                       "expression": "`neighborhood`"
+                    },
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
                     },
                     {
                       "name": "count(property_id)",
@@ -1325,6 +1557,10 @@
                   {
                     "fieldName": "neighborhood",
                     "displayName": "Neighborhood"
+                  },
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City"
                   },
                   {
                     "fieldName": "count(property_id)",
@@ -1367,10 +1603,10 @@
             }
           },
           "position": {
-            "x": 8,
-            "y": 21,
+            "x": 0,
+            "y": 31,
             "width": 4,
-            "height": 10
+            "height": 8
           }
         },
         {
@@ -1415,6 +1651,10 @@
                       "expression": "`neighborhood`"
                     },
                     {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    },
+                    {
                       "name": "deal_label",
                       "expression": "`deal_label`"
                     },
@@ -1441,6 +1681,10 @@
                     {
                       "name": "last_price_cop",
                       "expression": "`last_price_cop`"
+                    },
+                    {
+                      "name": "predicted_price_cop",
+                      "expression": "`predicted_price_cop`"
                     },
                     {
                       "name": "url",
@@ -1481,6 +1725,10 @@
                     "displayName": "Neighborhood"
                   },
                   {
+                    "fieldName": "city_label",
+                    "displayName": "City"
+                  },
+                  {
                     "fieldName": "deal_label",
                     "displayName": "Deal",
                     "tooltip": {
@@ -1518,6 +1766,1734 @@
                         "type": "max",
                         "places": 2
                       }
+                    }
+                  },
+                  {
+                    "fieldName": "predicted_price_cop",
+                    "displayName": "Model price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    },
+                    "tooltip": {
+                      "templatedText": "The rent the model expects for this listing, from its features. Only listings seen in the last 7 days get one."
+                    }
+                  },
+                  {
+                    "fieldName": "url",
+                    "displayName": "Listing",
+                    "link": {
+                      "templatedURL": "{{@}}"
+                    }
+                  },
+                  {
+                    "fieldName": "days_seen",
+                    "displayName": "Days seen"
+                  },
+                  {
+                    "fieldName": "source",
+                    "displayName": "Source"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "All listings",
+                "showDescription": true,
+                "description": "Most recently seen first. Days seen counts the days a scraper found it"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 40,
+            "width": 12,
+            "height": 10
+          }
+        }
+      ]
+    },
+    {
+      "name": "sales",
+      "displayName": "Sale listings",
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1",
+      "layout": [
+        {
+          "widget": {
+            "name": "sale-header",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Sales market\n",
+                "\n",
+                "Listings for sale from Fincaraiz and Metrocuadrado in Bogota, Medellin, Envigado and Sabaneta."
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 4,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-city",
+            "queries": [
+              {
+                "name": "sale_listings_city_label",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City",
+                    "queryName": "sale_listings_city_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "City"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-last-seen",
+            "queries": [
+              {
+                "name": "sale_listings_last_seen_date",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "last_seen_date",
+                      "expression": "`last_seen_date`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "last_seen_date",
+                    "displayName": "Last seen",
+                    "queryName": "sale_listings_last_seen_date"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Last seen",
+                "showDescription": true,
+                "description": "Date a scraper last found the listing"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-good-deals",
+            "queries": [
+              {
+                "name": "sale_listings_deal_filter",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "deal_filter",
+                      "expression": "`deal_filter`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "deal_filter",
+                    "displayName": "Good deals",
+                    "queryName": "sale_listings_deal_filter"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Good deals",
+                "showDescription": true,
+                "description": "Asking price below the model's likely range. Hover a deal for details."
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 0,
+            "width": 3,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-property-type",
+            "queries": [
+              {
+                "name": "sale_listings_property_type",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "property_type",
+                      "expression": "`property_type`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "property_type",
+                    "displayName": "Property type",
+                    "queryName": "sale_listings_property_type"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Property type"
+              },
+              "selection": {
+                "defaultSelection": {
+                  "values": {
+                    "dataType": "STRING",
+                    "values": [
+                      {
+                        "value": "apartamento"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-neighborhood",
+            "queries": [
+              {
+                "name": "sale_listings_neighborhood",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "neighborhood",
+                      "expression": "`neighborhood`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "neighborhood",
+                    "displayName": "Neighborhood",
+                    "queryName": "sale_listings_neighborhood"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Neighborhood"
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-estrato",
+            "queries": [
+              {
+                "name": "sale_listings_estrato_label",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "estrato_label",
+                      "expression": "`estrato_label`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "estrato_label",
+                    "displayName": "Estrato",
+                    "queryName": "sale_listings_estrato_label"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Estrato"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-bedrooms",
+            "queries": [
+              {
+                "name": "sale_listings_bedrooms",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "bedrooms",
+                      "expression": "`bedrooms`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "bedrooms",
+                    "displayName": "Bedrooms",
+                    "queryName": "sale_listings_bedrooms"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Bedrooms"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-bathrooms",
+            "queries": [
+              {
+                "name": "sale_listings_bathrooms",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "bathrooms",
+                      "expression": "`bathrooms`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "bathrooms",
+                    "displayName": "Bathrooms",
+                    "queryName": "sale_listings_bathrooms"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Bathrooms"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-filter-parking",
+            "queries": [
+              {
+                "name": "sale_listings_parking",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "parking",
+                      "expression": "`parking`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "parking",
+                    "displayName": "Parking spots",
+                    "queryName": "sale_listings_parking"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Parking spots"
+              }
+            }
+          },
+          "position": {
+            "x": 10,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-kpi-median-rent",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median sale price",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median sale price",
+                "showDescription": true,
+                "description": "Asking price when first seen"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-kpi-median-m2",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "measure(Median price per m2)",
+                      "expression": "MEASURE(`Median price per m2`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Median price per m2)",
+                  "displayName": "Median price per m²",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price per m²",
+                "showDescription": true,
+                "description": "Listings with a known area"
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-kpi-listings",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "measure(Listings)",
+                      "expression": "MEASURE(`Listings`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "measure(Listings)",
+                  "displayName": "Listings"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Listings",
+                "showDescription": true,
+                "description": "Since November 2026"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-kpi-still-listed",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "sum(still_listed)",
+                      "expression": "SUM(`still_listed`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(still_listed)",
+                  "displayName": "Still listed"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Still listed",
+                "showDescription": true,
+                "description": "Seen in the last 7 days"
+              }
+            }
+          },
+          "position": {
+            "x": 9,
+            "y": 4,
+            "width": 3,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-section-prices",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Prices\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 7,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-rent-by-month",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "monthly(first_seen_date)",
+                      "expression": "DATE_TRUNC(\"MONTH\", `first_seen_date`)"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "monthly(first_seen_date)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "displayName": "Month first seen",
+                  "axis": {
+                    "hideTitle": true
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median price",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median sale price",
+                "showDescription": true,
+                "description": "By the month a listing first appeared"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 8,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-rent-histogram",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "bin(price_millions_capped, binWidth=100)",
+                      "expression": "BIN_FLOOR(`price_millions_capped`, 100)"
+                    },
+                    {
+                      "name": "count(*)",
+                      "expression": "COUNT(`*`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "histogram",
+              "encodings": {
+                "x": {
+                  "fieldName": "bin(price_millions_capped, binWidth=100)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sale price (million COP)"
+                },
+                "y": {
+                  "fieldName": "count(*)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Listings"
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "How prices spread",
+                "showDescription": true,
+                "description": "Prices above 3,000 million COP are in the last bar"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 8,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-rent-by-bedrooms",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "bedrooms_label",
+                      "expression": "`bedrooms_label`"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "bedrooms_label",
+                  "displayName": "Bedrooms",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "0",
+                        "1",
+                        "2",
+                        "3",
+                        "4",
+                        "5+",
+                        "unknown"
+                      ]
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median price",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price by bedrooms"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 14,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-m2-by-estrato",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "estrato_label",
+                      "expression": "`estrato_label`"
+                    },
+                    {
+                      "name": "measure(Median price per m2)",
+                      "expression": "MEASURE(`Median price per m2`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "estrato_label",
+                  "displayName": "Estrato",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "1",
+                        "2",
+                        "3",
+                        "4",
+                        "5",
+                        "6",
+                        "unknown"
+                      ]
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "measure(Median price per m2)",
+                  "displayName": "Median price per m²",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price per m² by estrato",
+                "showDescription": true,
+                "description": "Listings with a known area"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 14,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-rent-vs-area",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "area_m2_chart",
+                      "expression": "`area_m2_chart`"
+                    },
+                    {
+                      "name": "price_millions_chart",
+                      "expression": "`price_millions_chart`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "area_m2_chart",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Area (m²)"
+                },
+                "y": {
+                  "fieldName": "price_millions_chart",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Sale price (million COP)"
+                }
+              },
+              "mark": {
+                "opacity": 0.35
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Price against area",
+                "showDescription": true,
+                "description": "Up to 400 m² and 3,000 million COP"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 14,
+            "width": 4,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-section-where",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Where and what\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 20,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-barrio-map",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    },
+                    {
+                      "name": "sector_code",
+                      "expression": "`sector_code`"
+                    },
+                    {
+                      "name": "barrio",
+                      "expression": "`barrio`"
+                    },
+                    {
+                      "name": "shape_geojson",
+                      "expression": "ST_ASGEOJSON(ST_UNION_AGG(`shape_bogota`))"
+                    },
+                    {
+                      "name": "measure(Median price for map)",
+                      "expression": "MEASURE(`Median price for map`)"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    },
+                    {
+                      "name": "count(property_id)",
+                      "expression": "COUNT(`property_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "choropleth-map",
+              "encodings": {
+                "region": {
+                  "regionType": "custom",
+                  "fieldName": "shape_geojson",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "measure(Median price for map)",
+                  "displayName": "Median price",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  },
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#fbd96a",
+                        "end": "#b3261e"
+                      }
+                    }
+                  }
+                },
+                "extra": [
+                  {
+                    "fieldName": "barrio",
+                    "displayName": "Barrio"
+                  },
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City"
+                  },
+                  {
+                    "fieldName": "measure(Median price)",
+                    "displayName": "Real median price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "count(property_id)",
+                    "displayName": "Listings"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price by barrio: Bogota",
+                "showDescription": true,
+                "description": "Redder is more expensive; 2,000 million or more is the darkest red. Hover a barrio for its name. Listings with a barrio name we could not place are left out"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 6,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-barrio-map-aburra",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    },
+                    {
+                      "name": "sector_code",
+                      "expression": "`sector_code`"
+                    },
+                    {
+                      "name": "barrio",
+                      "expression": "`barrio`"
+                    },
+                    {
+                      "name": "shape_geojson",
+                      "expression": "ST_ASGEOJSON(ST_UNION_AGG(`shape_aburra`))"
+                    },
+                    {
+                      "name": "measure(Median price for map)",
+                      "expression": "MEASURE(`Median price for map`)"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    },
+                    {
+                      "name": "count(property_id)",
+                      "expression": "COUNT(`property_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 1,
+              "widgetType": "choropleth-map",
+              "encodings": {
+                "region": {
+                  "regionType": "custom",
+                  "fieldName": "shape_geojson",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "measure(Median price for map)",
+                  "displayName": "Median price",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  },
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#fbd96a",
+                        "end": "#b3261e"
+                      }
+                    }
+                  }
+                },
+                "extra": [
+                  {
+                    "fieldName": "barrio",
+                    "displayName": "Barrio"
+                  },
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City"
+                  },
+                  {
+                    "fieldName": "measure(Median price)",
+                    "displayName": "Real median price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "count(property_id)",
+                    "displayName": "Listings"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price by barrio: Medellin, Envigado and Sabaneta",
+                "showDescription": true,
+                "description": "Redder is more expensive; 2,000 million or more is the darkest red. Hover a barrio for its name. Listings with a barrio name we could not place are left out"
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 21,
+            "width": 6,
+            "height": 10
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-estrato-bedrooms-heatmap",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "bedrooms_label",
+                      "expression": "`bedrooms_label`"
+                    },
+                    {
+                      "name": "estrato_label",
+                      "expression": "`estrato_label`"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "bedrooms_label",
+                  "displayName": "Bedrooms",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "0",
+                        "1",
+                        "2",
+                        "3",
+                        "4",
+                        "5+",
+                        "unknown"
+                      ]
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "estrato_label",
+                  "displayName": "Estrato",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "6",
+                        "5",
+                        "4",
+                        "3",
+                        "2",
+                        "1",
+                        "unknown"
+                      ]
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "measure(Median price)",
+                  "displayName": "Median price",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "COP",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  },
+                  "scale": {
+                    "type": "quantitative",
+                    "colorRamp": {
+                      "mode": "custom-sequential",
+                      "colors": {
+                        "start": "#cde2fb",
+                        "end": "#0d366b"
+                      }
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Median price by estrato and bedrooms",
+                "showDescription": true,
+                "description": "Darker is more expensive"
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 31,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-listings-by-type",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "property_type",
+                      "expression": "`property_type`"
+                    },
+                    {
+                      "name": "count(property_id)",
+                      "expression": "COUNT(`property_id`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "count(property_id)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "displayName": "Listings"
+                },
+                "y": {
+                  "fieldName": "property_type",
+                  "displayName": "Property type",
+                  "axis": {
+                    "hideTitle": true
+                  },
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "apartamento",
+                        "oficina",
+                        "apartaestudio",
+                        "casa",
+                        "bodega",
+                        "local comercial",
+                        "edificio de oficinas",
+                        "consultorio",
+                        "local",
+                        "edificio de apartamentos",
+                        "lote",
+                        "edificio",
+                        "casa campestre",
+                        "habitacion",
+                        "finca",
+                        "casa lote"
+                      ]
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Listings by property type"
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 31,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-zones-table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "neighborhood",
+                      "expression": "`neighborhood`"
+                    },
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    },
+                    {
+                      "name": "count(property_id)",
+                      "expression": "COUNT(`property_id`)"
+                    },
+                    {
+                      "name": "measure(Median price)",
+                      "expression": "MEASURE(`Median price`)"
+                    },
+                    {
+                      "name": "measure(Median price per m2)",
+                      "expression": "MEASURE(`Median price per m2`)"
+                    }
+                  ],
+                  "disaggregated": false,
+                  "orders": [
+                    {
+                      "direction": "DESC",
+                      "expression": "COUNT(`property_id`)"
+                    }
+                  ]
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "neighborhood",
+                    "displayName": "Neighborhood"
+                  },
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City"
+                  },
+                  {
+                    "fieldName": "count(property_id)",
+                    "displayName": "Listings"
+                  },
+                  {
+                    "fieldName": "measure(Median price)",
+                    "displayName": "Median price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "measure(Median price per m2)",
+                    "displayName": "Median price per m²",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 1
+                      }
+                    }
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Neighborhoods",
+                "showDescription": true,
+                "description": "Most listings first. Click a column header to sort"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 31,
+            "width": 4,
+            "height": 8
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-section-listings",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### Listings\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 39,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "sale-listings-table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "sale_listings",
+                  "fields": [
+                    {
+                      "name": "last_seen_date",
+                      "expression": "`last_seen_date`"
+                    },
+                    {
+                      "name": "first_seen_date",
+                      "expression": "`first_seen_date`"
+                    },
+                    {
+                      "name": "property_type",
+                      "expression": "`property_type`"
+                    },
+                    {
+                      "name": "neighborhood",
+                      "expression": "`neighborhood`"
+                    },
+                    {
+                      "name": "city_label",
+                      "expression": "`city_label`"
+                    },
+                    {
+                      "name": "deal_label",
+                      "expression": "`deal_label`"
+                    },
+                    {
+                      "name": "estrato_label",
+                      "expression": "`estrato_label`"
+                    },
+                    {
+                      "name": "bedrooms",
+                      "expression": "`bedrooms`"
+                    },
+                    {
+                      "name": "bathrooms",
+                      "expression": "`bathrooms`"
+                    },
+                    {
+                      "name": "parking",
+                      "expression": "`parking`"
+                    },
+                    {
+                      "name": "area_m2",
+                      "expression": "`area_m2`"
+                    },
+                    {
+                      "name": "last_price_cop",
+                      "expression": "`last_price_cop`"
+                    },
+                    {
+                      "name": "predicted_price_cop",
+                      "expression": "`predicted_price_cop`"
+                    },
+                    {
+                      "name": "url",
+                      "expression": "`url`"
+                    },
+                    {
+                      "name": "days_seen",
+                      "expression": "`days_seen`"
+                    },
+                    {
+                      "name": "source",
+                      "expression": "`source`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "last_seen_date",
+                    "displayName": "Last seen"
+                  },
+                  {
+                    "fieldName": "first_seen_date",
+                    "displayName": "First seen"
+                  },
+                  {
+                    "fieldName": "property_type",
+                    "displayName": "Type"
+                  },
+                  {
+                    "fieldName": "neighborhood",
+                    "displayName": "Neighborhood"
+                  },
+                  {
+                    "fieldName": "city_label",
+                    "displayName": "City"
+                  },
+                  {
+                    "fieldName": "deal_label",
+                    "displayName": "Deal",
+                    "tooltip": {
+                      "templatedText": "A good deal asks less than the low end of the price range the model expects for it. Fewer than 1 in 10 similar listings ask that little. Only listings seen in the last 7 days with a known area or bedrooms can be good deals."
+                    }
+                  },
+                  {
+                    "fieldName": "estrato_label",
+                    "displayName": "Estrato"
+                  },
+                  {
+                    "fieldName": "bedrooms",
+                    "displayName": "Bedrooms"
+                  },
+                  {
+                    "fieldName": "bathrooms",
+                    "displayName": "Bathrooms"
+                  },
+                  {
+                    "fieldName": "parking",
+                    "displayName": "Parking"
+                  },
+                  {
+                    "fieldName": "area_m2",
+                    "displayName": "Area (m²)"
+                  },
+                  {
+                    "fieldName": "last_price_cop",
+                    "displayName": "Last price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    }
+                  },
+                  {
+                    "fieldName": "predicted_price_cop",
+                    "displayName": "Model price",
+                    "format": {
+                      "type": "number-currency",
+                      "currencyCode": "COP",
+                      "abbreviation": "compact",
+                      "decimalPlaces": {
+                        "type": "max",
+                        "places": 2
+                      }
+                    },
+                    "tooltip": {
+                      "templatedText": "The price the model expects for this listing, from its features. Only listings seen in the last 7 days get one."
                     }
                   },
                   {

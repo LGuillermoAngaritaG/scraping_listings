@@ -207,3 +207,6 @@ marimo/_lsp/
 __marimo__/
 
 claude.md
+# Scraped files go to Databricks only (see the scrape workflows). The history up to
+# 23 Nov 2026 is in git history; README.md shows how to restore it.
+data/*.csv

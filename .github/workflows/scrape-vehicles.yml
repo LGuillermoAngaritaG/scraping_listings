@@ -1,0 +1,81 @@
+name: Scrape Vehicles
+
+on:
+  schedule:
+    # Once a day at 08:17 UTC (03:17 in Colombia): quiet hours for the dealer sites,
+    # away from the property scrapers and from the busy top of the hour.
+    - cron: '17 8 * * *'
+  workflow_dispatch:  # Allow manual trigger
+
+permissions:
+  contents: read  # The scraped files go to Databricks, not to the repository
+
+jobs:
+  scrape:
+    # One job for all dealer sites: `scrape-vehicles all` runs them one after the other
+    # and keeps going when one of them fails.
+    runs-on: ubuntu-latest
+    env:
+      # Databricks keeps the only lasting copy of the scraped files, so the upload must work:
+      # without these secrets the upload step fails the run.
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+      DATABRICKS_VOLUME_PATH: /Volumes/workspace/inmuebles/csv_vehiculos
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        run: |
+          uv pip install --system -e .
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Run scraper
+        run: |
+          scrape-vehicles all
+        timeout-minutes: 20
+
+      - name: Collect the files this run created
+        if: always()
+        run: |
+          # git ignores the scraped CSV files (.gitignore), so list the ignored ones.
+          mkdir -p new
+          git ls-files --others --ignored --exclude-standard 'data/vehicles-*.csv' | xargs -r cp -t new/
+
+      - name: Upload scraped data
+        uses: actions/upload-artifact@v4
+        if: always()  # Upload even if a site failed
+        with:
+          name: vehicles
+          path: new/*.csv
+          if-no-files-found: ignore
+          retention-days: 90  # the most a public repository allows
+
+      - name: Set up Databricks CLI
+        if: always()
+        uses: databricks/setup-cli@v1.27.0
+
+      - name: Upload new CSV files to Databricks volume
+        # A failed upload fails the run, so GitHub sends its failure email. The files stay in
+        # the artifact above for 90 days, to upload again by hand.
+        if: always()
+        run: |
+          failed=0
+          for f in new/vehicles-*.csv; do
+            [ -e "$f" ] || continue
+            databricks fs cp "$f" "dbfs:${DATABRICKS_VOLUME_PATH}/$(basename "$f")" --overwrite || failed=1
+          done
+          exit $failed

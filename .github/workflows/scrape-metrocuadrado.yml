@@ -11,7 +11,7 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 permissions:
-  contents: write  # Required to push commits
+  contents: read  # The scraped files go to Databricks, not to the repository
 
 jobs:
   scrape:
@@ -30,7 +30,8 @@ jobs:
           - metrocuadrado-envigado-sale
           - metrocuadrado-sabaneta-sale
     env:
-      # Upload steps are skipped until these secrets exist in the repository.
+      # Databricks keeps the only lasting copy of the scraped files, so the upload must work:
+      # without these secrets the upload step fails the run.
       DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
       DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
       DATABRICKS_VOLUME_PATH: /Volumes/workspace/inmuebles/csv_diarios
@@ -69,9 +70,9 @@ jobs:
       - name: Collect the files this run created
         if: always()
         run: |
-          # Untracked files are the ones this run created.
+          # git ignores the scraped CSV files (.gitignore), so list the ignored ones.
           mkdir -p new
-          git ls-files --others --exclude-standard 'data/*.csv' | xargs -r cp -t new/
+          git ls-files --others --ignored --exclude-standard 'data/*.csv' | xargs -r cp -t new/
 
       - name: Upload scraped data
         uses: actions/upload-artifact@v4
@@ -80,52 +81,21 @@ jobs:
           name: ${{ matrix.scraper }}
           path: new/*.csv
           if-no-files-found: ignore
-          retention-days: 30
+          retention-days: 90  # the most a public repository allows
 
       - name: Set up Databricks CLI
-        if: always() && env.DATABRICKS_HOST != ''
+        if: always()
         uses: databricks/setup-cli@v1.27.0
 
       - name: Upload new CSV files to Databricks volume
-        if: always() && env.DATABRICKS_HOST != ''
+        # A failed upload fails the run, so GitHub sends its failure email. The files stay in
+        # the artifact above for 90 days, to upload again by hand.
+        if: always()
         run: |
-          # Only details files feed the pipeline.
+          # Only details files feed the pipeline. Try every file, then fail if any failed.
+          failed=0
           for f in new/*_details_*.csv; do
             [ -e "$f" ] || continue
-            databricks fs cp "$f" "dbfs:${DATABRICKS_VOLUME_PATH}/$(basename "$f")" --overwrite
+            databricks fs cp "$f" "dbfs:${DATABRICKS_VOLUME_PATH}/$(basename "$f")" --overwrite || failed=1
           done
-        continue-on-error: true
-
-  commit:
-    # One commit for all searches, so the parallel jobs do not race to push.
-    needs: scrape
-    if: always()
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download the files of every search
-        uses: actions/download-artifact@v4
-        with:
-          path: data
-          merge-multiple: true
-        continue-on-error: true  # No files at all if every search failed
-
-      - name: Commit and push scraped data
-        run: |
-          git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git config --local user.name "github-actions[bot]"
-          git add data/*.csv || true
-          if git diff --staged --quiet; then
-            echo "No new data to commit"
-            exit 0
-          fi
-          git commit -m "🤖 Auto-scrape: Metrocuadrado data - $(date -u '+%Y-%m-%d %H:%M:%S UTC')"
-          # The other site's workflow may push at the same time: rebase and try again.
-          for attempt in 1 2 3 4 5; do
-            git pull --rebase origin ${{ github.ref_name }} && git push origin ${{ github.ref_name }} && exit 0
-            sleep $((attempt * 10))
-          done
-          echo "Failed to push, but data is saved in artifacts"
-        continue-on-error: true
+          exit $failed

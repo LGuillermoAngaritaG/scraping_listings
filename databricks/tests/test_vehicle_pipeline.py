@@ -2,10 +2,15 @@
 
 import pandas as pd
 import pytest
-
 from conftest import vehicle_files
 from listings import CSV_OPTIONS
-from vehicles import VEHICLE_SCHEMA, build_vehicle_listings, dedupe_vehicles_daily, parse_vehicles, valid_vehicle_rows
+from vehicles import (
+    VEHICLE_SCHEMA,
+    build_vehicle_listings,
+    dedupe_vehicles_daily,
+    parse_vehicles,
+    valid_vehicle_rows,
+)
 
 COLUMNS = [c.split()[0] for c in VEHICLE_SCHEMA.split(", ")]
 

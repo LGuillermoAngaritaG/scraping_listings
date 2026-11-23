@@ -31,13 +31,13 @@ VEHICLE = {"model": os.environ["VEHICLE_MODEL"], "listings": os.environ["VEHICLE
            "button": "Estimate car price"}
 CHAMPION = "campeon"
 MODELS = {**MODES, "vehicle": VEHICLE}  # one model card each in "How it was built"
-# The simple rule each model must beat (baseline_predict in rent_model.py and vehicle_model.py).
+# The simple rule each model must beat (baseline_predict in property_model.py and vehicle_model.py).
 BASELINES = {"rent": "barrio median", "sale": "barrio median", "vehicle": "median of the same line and year"}
 CAR_ACRONYMS = {"bmw", "mg", "byd", "jac", "dfsk", "gac", "baic", "ds", "gmc", "vw", "jmc", "suv"}
 CITIES = {"bogota": "Bogota", "medellin": "Medellin", "envigado": "Envigado", "sabaneta": "Sabaneta"}
 DEFAULT_ZONES = ["chico norte", "el poblado"]
 ANY_ZONE = ""  # the user did not pick a barrio
-# What training uses for a listing without a barrio (rent_model.prepare), so the model knows it.
+# What training uses for a listing without a barrio (property_model.prepare), so the model knows it.
 UNKNOWN_ZONE = "unknown"
 # Values as they appear for Metrocuadrado, the source the app sends.
 PROPERTY_TYPES = [

@@ -6,7 +6,7 @@ import re
 
 from parsel import Selector
 
-from app.vehicles.common import canon_brand, canon_city, clean_text, make_row, norm
+from scraping_listings.vehicles.common import canon_brand, canon_city, clean_text, make_row, norm
 
 LIST_URL = "https://maxiautos.co/2-concesionario-autos"
 

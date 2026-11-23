@@ -88,7 +88,7 @@ The Used cars page: filters by brand, line, year, body type, transmission, fuel,
 | `src/pipeline/listings.py` | All parsing and cleaning logic (plain PySpark, no UDFs) |
 | `src/pipeline/vehicles.py` | Used-car cleaning: types, rules, one row per car and day, one row per car |
 | `src/pipeline/transformations/` | Lakeflow pipeline: bronze (Auto Loader), silver, gold for rent and for sale; the same three layers for used cars (`vehicle_tables.py`) |
-| `src/ml/rent_model.py` | Features, the three model types and their average, split, baseline, metrics, price range, backtest (used by both models) |
+| `src/ml/property_model.py` | Features, the three model types and their average, split, baseline, metrics, price range, backtest. Used by the rent and the sale model; the car model reuses parts |
 | `src/ml/model_search.py` | Monthly model search: Optuna tuning of each model type on a validation slice, then the best of them and their average |
 | `src/ml/vehicle_model.py` | What differs for used cars: columns, baseline (median of the same brand, line and year) and the good-deal rule |
 | `src/ml/banded_model.py` | The registered model: returns prediction, low and high |
@@ -114,7 +114,7 @@ The Used cars page: filters by brand, line, year, body type, transmission, fuel,
 | Catalog | `workspace` (Free Edition default) | Creating catalogs is unreliable on Free Edition |
 | Parsing | Regex on the scraper's text field, built-in Spark functions only | No Python UDFs, so nothing to ship to executors |
 | Deduplication | One row per source, property and day; a valid row wins, then the latest | Scrapers run 3 to 4 times a day |
-| Models | One for rent, one for sale, one for used cars, same code | Sale prices are in the hundreds of millions of COP, rents in the millions, and a rent is not a fixed share of the price. Each has its own registered model, endpoint and promotion. A car has other columns, so `train.py` and `score.py` take the columns, baseline and good-deal rule from `rent_model.py` or `vehicle_model.py` |
+| Models | One for rent, one for sale, one for used cars, same code | Sale prices are in the hundreds of millions of COP, rents in the millions, and a rent is not a fixed share of the price. Each has its own registered model, endpoint and promotion. A car has other columns, so `train.py` and `score.py` take the columns, baseline and good-deal rule from `property_model.py` or `vehicle_model.py` |
 | Used cars | Own volume and tables; the scrapers write the same flat columns for every dealer, so silver only casts types and checks rules (price 5 M to 3,000 M COP, year 1980 to next year, mileage up to 1 M km) | The property bronze reads every file in its volume. Mapping each dealer's fields in Python, with fixture tests, is easier than in Spark |
 | City | Taken from the search that found the listing, and a model feature next to the neighborhood | Barrio names repeat across cities (La Castellana is in Bogota and in Medellin). The baseline uses city and neighborhood together |
 | Split by city | A city with 60 days of data or more is tested on its last 30 days; a newer city on a random 1 in 5 of its listings. Every city is in training | A time split needs a past to train on. With one cutoff for all cities, a city added last month would be all test and the model would never learn it. The `split` parameter of each run says `temporal`, `mixed` or `random` |
@@ -148,7 +148,7 @@ The Used cars page: filters by brand, line, year, body type, transmission, fuel,
    ```
 4. Upload the CSV history up to 23 Nov 2026. It is in git history only, so restore it first (from the repository root; git ignores the restored files):
    ```bash
-   cd .. && git restore --source "$(git log -1 --format=%H --diff-filter=D -- data)~1" -- data && cd databricks
+   cd .. && git restore --source "164f34f~1" -- data && cd databricks
    ```
    ```bash
    scripts/backfill.sh
@@ -243,12 +243,14 @@ Most recent rows have no area: Metrocuadrado lost it from Feb to Nov 2026 and Fi
 They run the same parsing, cleaning and model code on the real CSV files with a local Spark (needs Java 17+). The property files come from git history (restore them once, from the repository root), the car files from a local `scrape-vehicles all` run:
 
 ```bash
-git restore --source "$(git log -1 --format=%H --diff-filter=D -- data)~1" -- data
+git restore --source "164f34f~1" -- data
 ```
 
 ```bash
 cd databricks && uv sync && uv run pytest -s
 ```
+
+GitHub runs them too (the Tests workflow), with the history restored and the car-file tests skipped.
 
 ## Limits to keep in mind
 

@@ -15,87 +15,17 @@ permissions:
 
 jobs:
   scrape:
-    # One job per search (config.yaml), all in parallel.
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false  # A failing search must not stop the others
-      matrix:
-        scraper:
-          - metrocuadrado-bogota-leasing
-          - metrocuadrado-medellin-leasing
-          - metrocuadrado-envigado-leasing
-          - metrocuadrado-sabaneta-leasing
-          - metrocuadrado-bogota-sale
-          - metrocuadrado-medellin-sale
-          - metrocuadrado-envigado-sale
-          - metrocuadrado-sabaneta-sale
-    env:
-      # Databricks keeps the only lasting copy of the scraped files, so the upload must work:
-      # without these secrets the upload step fails the run.
-      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
-      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
-      DATABRICKS_VOLUME_PATH: /Volumes/workspace/inmuebles/csv_diarios
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Install uv
-        run: |
-          curl -LsSf https://astral.sh/uv/install.sh | sh
-          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
-        run: |
-          uv pip install --system -e .
-
-      - name: Install Playwright browsers
-        run: |
-          playwright install chromium
-          playwright install-deps chromium
-
-      - name: Create data directory
-        run: mkdir -p data
-
-      - name: Run scraper
-        run: |
-          scrape ${{ matrix.scraper }}
-        timeout-minutes: 45
-
-      - name: Collect the files this run created
-        if: always()
-        run: |
-          # git ignores the scraped CSV files (.gitignore), so list the ignored ones.
-          mkdir -p new
-          git ls-files --others --ignored --exclude-standard 'data/*.csv' | xargs -r cp -t new/
-
-      - name: Upload scraped data
-        uses: actions/upload-artifact@v4
-        if: always()  # Upload even if scraper fails
-        with:
-          name: ${{ matrix.scraper }}
-          path: new/*.csv
-          if-no-files-found: ignore
-          retention-days: 90  # the most a public repository allows
-
-      - name: Set up Databricks CLI
-        if: always()
-        uses: databricks/setup-cli@v1.27.0
-
-      - name: Upload new CSV files to Databricks volume
-        # A failed upload fails the run, so GitHub sends its failure email. The files stay in
-        # the artifact above for 90 days, to upload again by hand.
-        if: always()
-        run: |
-          # Only details files feed the pipeline. Try every file, then fail if any failed.
-          failed=0
-          for f in new/*_details_*.csv; do
-            [ -e "$f" ] || continue
-            databricks fs cp "$f" "dbfs:${DATABRICKS_VOLUME_PATH}/$(basename "$f")" --overwrite || failed=1
-          done
-          exit $failed
+    # One job per search (config.yaml), all in parallel. The steps are in scrape.yml.
+    uses: ./.github/workflows/scrape.yml
+    with:
+      command: scrape
+      targets: >-
+        ["metrocuadrado-bogota-leasing", "metrocuadrado-medellin-leasing",
+         "metrocuadrado-envigado-leasing", "metrocuadrado-sabaneta-leasing",
+         "metrocuadrado-bogota-sale", "metrocuadrado-medellin-sale",
+         "metrocuadrado-envigado-sale", "metrocuadrado-sabaneta-sale"]
+      upload: '*_details_*.csv'  # only details files feed the pipeline
+      volume: /Volumes/workspace/inmuebles/csv_diarios
+      playwright: true
+      timeout-minutes: 45
+    secrets: inherit

@@ -1,16 +1,20 @@
-import scrapy
-from scrapy.crawler import CrawlerRunner
-from crochet import setup, wait_for
-from typing import Any, Iterator
+import asyncio
+import logging
+from collections.abc import Iterator
+from typing import Any
 from urllib.parse import urljoin
-from app.scrapers.base import BaseScraper, ScraperInput, ScraperOutput
-from app.services.data_saver import save_data_incremental
+
+import scrapy
+from crochet import setup, wait_for
+from scrapy.crawler import CrawlerRunner
+from twisted.internet import asyncioreactor
+
+from scraping_listings.scrapers.base import BaseScraper, ScraperInput, ScraperOutput
+from scraping_listings.services.data_saver import save_data_incremental
 
 # Install asyncio reactor before crochet setup to match Scrapy's requirements
-import asyncio
-from twisted.internet import asyncioreactor
 asyncioreactor.install(asyncio.new_event_loop())
-import logging
+
 logging.getLogger('scrapy').setLevel(logging.WARNING)
 logger = logging.getLogger("scrapy_scraper")
 # Setup crochet to manage the reactor in a separate thread
@@ -24,7 +28,7 @@ class ScrapyScraper(BaseScraper):
     def __init__(self, scraper_input: ScraperInput, output_filename: str | None = None):
         """
         Initialize the Scrapy scraper.
-        
+
         :param scraper_input: Configuration object containing URLs, XPath selectors, and pagination settings.
         :param output_filename: Optional filename for incremental saving. If provided, data is saved continuously.
         """
@@ -34,25 +38,25 @@ class ScrapyScraper(BaseScraper):
             'USER_AGENT': 'Mozilla/5.0 (compatible; ScrapyScraper/1.0)',
             'TWISTED_REACTOR': 'twisted.internet.asyncioreactor.AsyncioSelectorReactor',
         })
-    
+
     @wait_for(timeout=300.0)  # 5 minute timeout
     def scrape(self) -> Iterator[ScraperOutput]:
         """
         Execute scraping using Scrapy with crochet for restartable execution.
-        
+
         :return: Iterator of ScraperOutput objects containing scraped data.
         """
         results = []
-        
+
         class DynamicSpider(scrapy.Spider):
             name = 'dynamic_scraper'
-            
+
             def __init__(self, scraper_instance, *args, **kwargs):
-                super(DynamicSpider, self).__init__(*args, **kwargs)
+                super().__init__(*args, **kwargs)
                 self.scraper = scraper_instance
                 self.start_urls = scraper_instance.urls
                 self.results = results
-            
+
             def start_requests(self):
                 logger.info(f"Starting requests for URLs: {self.start_urls}")
                 for url in self.start_urls:
@@ -62,35 +66,35 @@ class ScrapyScraper(BaseScraper):
                         callback=self.parse,
                         meta={'origin_url': url, 'page_number': 0}
                     )
-            
+
             def parse(self, response):
                 origin_url = response.meta.get('origin_url')
                 page_number = response.meta.get('page_number', 0)
-                
+
                 logger.info(f"Scraping page: {response.url} (page {page_number})")
                 extracted_data = self.scraper._extract_information(response, response.url)
-                
+
                 output = ScraperOutput(
                     url=response.url,
                     information=extracted_data
                 )
-                
+
                 # Save incrementally if output_filename is provided
                 if self.scraper.output_filename:
                     save_data_incremental(self.scraper.output_filename, output)
                     logger.info(f"Saved data incrementally to: {self.scraper.output_filename}")
                 else:
                     self.results.append(output)
-                
+
                 logger.info(f"Scraped data from: {response.url}")
 
                 yield output.model_dump()
-                
+
                 should_continue = self.scraper._should_continue_pagination(page_number)
-                
+
                 if should_continue and self.scraper.next_url_xpath:
                     next_url = self.scraper._get_next_url(response, response.url)
-                    
+
                     if next_url:
                         logger.info(f"Following pagination to: {next_url}")
                         yield scrapy.Request(
@@ -105,18 +109,18 @@ class ScrapyScraper(BaseScraper):
                         logger.info("No next page found.")
                 else:
                     logger.info("Stopping pagination.")
-        
+
         logger.info("Launching Scrapy spider.")
         deferred = self.runner.crawl(DynamicSpider, scraper_instance=self)
         deferred.addCallback(lambda _: iter(results))
         logger.info("Spider finished.")
         return deferred
-    
+
     def _extract_value(self, page_content: Any, xpath: str) -> str | None:
         """
         Extract a single value using xpath from Scrapy response.
         If multiple values are found, they are joined with ' | ' separator.
-        
+
         :param page_content: Scrapy response object to extract from.
         :param xpath: XPath expression to locate the element.
         :return: Extracted text or attribute value (joined if multiple), None if not found.
@@ -130,12 +134,12 @@ class ScrapyScraper(BaseScraper):
             return result
         logger.debug(f"_extract_value with xpath '{xpath}': None")
         return None
-    
+
     def _extract_values(self, page_content: Any, xpath: str) -> list[str]:
         """
         Extract multiple values using xpath from Scrapy response.
         Ensures all values are returned as strings.
-        
+
         :param page_content: Scrapy response object to extract from.
         :param xpath: XPath expression to locate the elements.
         :return: List of extracted text or attribute values (all strings).
@@ -145,31 +149,31 @@ class ScrapyScraper(BaseScraper):
         result = [str(v) for v in values] if values else []
         logger.debug(f"_extract_values with xpath '{xpath}': found {len(result)} values")
         return result
-    
+
     def _get_next_url(self, page_content: Any, current_url: str) -> str | None:
         """
         Get the next page URL from Scrapy response.
-        
+
         :param page_content: Scrapy response object to extract from.
         :param current_url: Current page URL for resolving relative URLs.
         :return: Absolute URL of the next page, None if not found.
         """
         if not self.next_url_xpath:
             return None
-        
+
         next_url = page_content.xpath(self.next_url_xpath).get()
-        
+
         if next_url:
             logger.debug(f"Next page URL extracted: {next_url}")
             return urljoin(current_url, next_url)
-        
+
         logger.debug("No next page URL found.")
         return None
 
 
 # if __name__ == "__main__":
 #     from base_scraper import SimpleInfo, DynamicInfo
-    
+
 #     scraper_input = ScraperInput(
 #         urls=["https://example.com"],
 #         next_url_xpath="//a[@class='next']/@href",
@@ -184,9 +188,9 @@ class ScrapyScraper(BaseScraper):
 #             )
 #         ]
 #     )
-    
+
 #     scraper = ScrapyScraper(scraper_input)
-    
+
 #     for result in scraper.scrape():
 #         print(f"URL: {result.url}")
 #         print(f"Data: {result.information}")

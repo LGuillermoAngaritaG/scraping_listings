@@ -1,11 +1,10 @@
 import numpy as np
 import pandas as pd
 import pytest
-
 from conftest import one_file_per_day, read_bronze
 from listings import build_listings, dedupe_daily, parse_listings, valid_rows
 from model_search import search
-from rent_model import (
+from property_model import (
     FAMILIES,
     FEATURES,
     TARGET,

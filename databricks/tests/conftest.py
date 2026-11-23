@@ -1,10 +1,10 @@
 import glob
+import os
 from pathlib import Path
 
 import pytest
-from pyspark.sql import SparkSession
-
 from listings import CSV_OPTIONS, RAW_SCHEMA, add_file_columns
+from pyspark.sql import SparkSession
 
 DATA_DIR = Path(__file__).resolve().parents[2] / "data"
 
@@ -50,5 +50,7 @@ def one_file_per_day() -> list[str]:
 def vehicle_files() -> list[str]:
     """Real used-car files from the dealer scrapers."""
     files = sorted(glob.glob(str(DATA_DIR / "vehicles-*.csv")))
+    if not files and os.environ.get("ALLOW_MISSING_DATA"):
+        pytest.skip("no vehicle data files (they are not in git)")  # GitHub Actions sets it
     assert files, "no vehicle data files: run `scrape-vehicles all` from the repository root"
     return files

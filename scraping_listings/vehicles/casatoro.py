@@ -4,7 +4,7 @@ import json
 
 from parsel import Selector
 
-from app.vehicles.common import cc_from_text, clean_text, make_row
+from scraping_listings.vehicles.common import cc_from_text, clean_text, make_row
 
 BASE_URL = "https://usados.casatoro.com"
 

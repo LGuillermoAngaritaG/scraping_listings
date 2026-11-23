@@ -15,9 +15,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(inspect.currentframe().f_code
 
 import matplotlib.pyplot as plt  # noqa: E402
 import mlflow  # noqa: E402
+from property_model import prepare, run_backtest  # noqa: E402
 from pyspark.sql import SparkSession  # noqa: E402
-
-from rent_model import prepare, run_backtest  # noqa: E402
 
 
 def parse_args():

@@ -1,6 +1,7 @@
+from datetime import UTC, datetime
 from typing import Any, Literal
+
 from pydantic import BaseModel, Field
-from datetime import datetime, timezone
 
 
 class SimpleInfo(BaseModel):
@@ -28,4 +29,4 @@ class ScraperInput(BaseModel):
 class ScraperOutput(BaseModel):
     url: str
     information: dict[str, Any]
-    date_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    date_time: datetime = Field(default_factory=lambda: datetime.now(UTC))

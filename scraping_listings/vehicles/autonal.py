@@ -2,7 +2,7 @@
 
 import html
 
-from app.vehicles.common import make_row
+from scraping_listings.vehicles.common import make_row
 
 API_URL = "https://autonal.com/wp-json/wc/store/v1/products"
 USED_CATEGORY = 59

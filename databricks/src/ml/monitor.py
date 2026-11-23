@@ -12,7 +12,7 @@ import argparse
 import inspect
 import os
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 # Databricks runs this file with exec(), so __file__ is not set. The code object still has the path.
 sys.path.insert(0, os.path.dirname(os.path.abspath(inspect.currentframe().f_code.co_filename)))
@@ -21,9 +21,7 @@ import mlflow  # noqa: E402
 import pandas as pd  # noqa: E402
 from databricks.sdk import WorkspaceClient  # noqa: E402
 from mlflow import MlflowClient  # noqa: E402
-from pyspark.sql import SparkSession  # noqa: E402
-
-from rent_model import (  # noqa: E402
+from property_model import (  # noqa: E402
     CHAMPION,
     DATE,
     FEATURES,
@@ -32,6 +30,7 @@ from rent_model import (  # noqa: E402
     point_estimate,
     prepare,
 )
+from pyspark.sql import SparkSession  # noqa: E402
 
 
 def parse_args():
@@ -69,7 +68,7 @@ def main():
     check = pd.DataFrame(
         [
             {
-                "checked_at": datetime.now(timezone.utc),
+                "checked_at": datetime.now(UTC),
                 "model_version": int(champion.version),
                 "window_days": args.window_days,
                 "rows": scores["rows"],

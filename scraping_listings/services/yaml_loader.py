@@ -1,5 +1,7 @@
 import yaml
-from app.models.scraper import ScraperInput, SimpleInfo, DynamicInfo
+
+from scraping_listings.models.scraper import DynamicInfo, ScraperInput, SimpleInfo
+
 
 class YamlLoaderListings:
     def __init__(self):
@@ -7,7 +9,7 @@ class YamlLoaderListings:
 
     def load(self, yaml_file: str = None):
         """Load yaml file and return ScraperInput"""
-        with open(self.default_yaml_file if yaml_file is None else yaml_file, 'r') as file:
+        with open(self.default_yaml_file if yaml_file is None else yaml_file) as file:
             yaml_data = yaml.safe_load(file)
         yaml_data = yaml_data['scrapers']
         scraper_inputs = []

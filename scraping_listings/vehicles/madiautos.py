@@ -7,7 +7,7 @@ from urllib.parse import urlsplit
 
 from parsel import Selector
 
-from app.vehicles.common import cc_from_text, clean_text, make_row
+from scraping_listings.vehicles.common import cc_from_text, clean_text, make_row
 
 SITEMAP_URL = "https://usados.madiautos.com.co/sitemap.xml"
 HOST = "usados.madiautos.com.co"

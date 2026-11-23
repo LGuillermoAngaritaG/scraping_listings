@@ -64,8 +64,8 @@ More in [Running on Databricks](databricks/README.md#running-on-databricks).
 
 ```
 scraping_listings/
-├── .github/workflows/      # Scheduled scrapers that upload to Databricks
-├── app/
+├── .github/workflows/      # Scheduled scrapers that upload to Databricks, and the tests
+├── scraping_listings/      # The scrapers (Python package)
 │   ├── main.py             # Property scraper entry point (scrape)
 │   ├── models/             # Pydantic models
 │   ├── scrapers/           # Scrapy and Playwright implementations
@@ -76,8 +76,8 @@ scraping_listings/
 ├── docs/diagrams/          # Architecture and process diagrams (draw.io)
 ├── tests/                  # Scraper tests (fixtures, no network)
 ├── config.yaml             # Property scraper configurations
-├── analyze_artifacts.ipynb # Local analysis notebook
-└── pyproject.toml          # Dependencies
+├── pyproject.toml          # Dependencies, lint and test settings
+└── uv.lock                 # Exact library versions, used by the workflows too
 ```
 
 ## Run the scrapers
@@ -93,12 +93,9 @@ cd scraping_listings
 # Install uv (recommended)
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Create virtual environment
-uv venv
+# Install the locked dependencies into .venv, then use it
+uv sync
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
-
-# Install project
-uv pip install -e .
 
 # Install Playwright browsers (if using Playwright scrapers)
 playwright install chromium
@@ -140,7 +137,7 @@ scrape-vehicles all        # every dealer, one after the other
 scrape-vehicles casatoro   # one dealer: autoexpo, casatoro, autonal, maxiautos, madiautos, metrousados
 ```
 
-Each dealer is one module in `app/vehicles/`, which reads the dealer's own catalog feed or its pages, at most one request a second per site. Every dealer is written to the same columns, one file per dealer and run:
+Each dealer is one module in `scraping_listings/vehicles/`, which reads the dealer's own catalog feed or its pages, at most one request a second per site. Every dealer is written to the same columns, one file per dealer and run:
 
 ```
 data/vehicles-casatoro_20261123_081339.csv
@@ -180,9 +177,17 @@ Each site has one full entry. The other searches (other cities, sales) reuse its
     pages_url: https://www.fincaraiz.com.co/venta/medellin/antioquia
 ```
 
+### Tests
+
+```bash
+uv run pytest                      # scraper tests, on saved pages (no network)
+uv run ruff check .                # lint, the whole repository
+cd databricks && uv run pytest     # pipeline, model and alert tests (see databricks/README.md)
+```
+
 ## Automation
 
-Three workflows run the scrapers on GitHub Actions. Each property search runs as its own parallel job:
+Three workflows run the scrapers on GitHub Actions. They share their steps (`scrape.yml`): install the exact versions from `uv.lock`, scrape, keep the files and upload them. Each property search runs as its own parallel job:
 
 | Workflow | Schedule | Searches | Databricks volume |
 |---|---|---|---|
@@ -192,15 +197,17 @@ Three workflows run the scrapers on GitHub Actions. Each property search runs as
 
 To run one by hand: **Actions** tab on GitHub, pick the workflow, **Run workflow**.
 
+A fourth workflow, Tests (`tests.yml`), runs the lint and both test suites on every push to `main` and on every pull request. On GitHub the tests that need the car files are skipped, because those files are not in git.
+
 The scraped files are not stored in this repository. Each run:
 
 - Uploads its new files to a Databricks volume, which keeps the only lasting copy. The run fails when an upload fails or the `DATABRICKS_HOST` and `DATABRICKS_TOKEN` secrets are missing.
 - Keeps its files as a run artifact for 90 days, the backup to upload again by hand.
 
-The CSV history up to 23 Nov 2026 was in `data/` and is still in git history. The local Databricks tests and the notebook need it. To get it back (the files are ignored by git, so they stay local):
+The CSV history up to 23 Nov 2026 was in `data/` and is still in git history: commit 164f34f removed it. The Databricks tests need it. To get it back (the files are ignored by git, so they stay local):
 
 ```bash
-git restore --source "$(git log -1 --format=%H --diff-filter=D -- data)~1" -- data
+git restore --source "164f34f~1" -- data
 ```
 
 ## Ethical considerations

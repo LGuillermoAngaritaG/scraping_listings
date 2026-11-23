@@ -1,6 +1,5 @@
-from pyspark import pipelines as dp
-
 from listings import build_listings
+from pyspark import pipelines as dp
 
 COLUMNS = (
     "first_seen_date and last_seen_date say when the listing was online. city is bogota, "

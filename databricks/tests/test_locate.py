@@ -1,5 +1,4 @@
 import pytest
-
 from locate import LOCALIDADES, Locator, city_sectors, contains, in_town, load_points, norm
 
 

@@ -6,10 +6,9 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 import pandas as pd
-import yaml
-
-import rent_model
+import property_model
 import vehicle_model
+import yaml
 
 ALERT = Path(__file__).resolve().parents[1] / "resources" / "alerts.yml"
 
@@ -21,7 +20,7 @@ def test_property_label_skips_what_is_unknown():
         "area_m2": [85.0, np.nan],
         "bedrooms": [2.0, 1.0],
     })
-    assert rent_model.deal_label(listings).tolist() == [
+    assert property_model.deal_label(listings).tolist() == [
         "Apartamento, Chico Norte, 85 m2, 2 bedrooms",
         "Casa, 1 bedroom",
     ]

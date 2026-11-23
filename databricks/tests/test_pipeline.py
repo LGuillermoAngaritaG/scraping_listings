@@ -1,9 +1,8 @@
 import pandas as pd
 import pytest
-from pyspark.sql import functions as F
-
 from conftest import detail_files, read_bronze
 from listings import build_listings, dedupe_daily, parse_listings, valid_rows
+from pyspark.sql import functions as F
 
 GOOD_DAY = "20251120"  # both scrapers worked
 BROKEN_DAY = "20260615"  # Fincaraiz saved 404 pages, Metrocuadrado had no area

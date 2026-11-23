@@ -1,15 +1,23 @@
 """Model search: tune each model type, add their average, keep the best on validation.
 
 The validation rows come out of the training rows with the same per-city rule as the test
-(rent_model.split). Tuning and choosing never see the test rows; train.py scores the winner
-on them once, after. Kept apart from rent_model.py so scoring jobs do not need Optuna.
+(property_model.split). Tuning and choosing never see the test rows; train.py scores the winner
+on them once, after. Kept apart from property_model.py so scoring jobs do not need Optuna.
 """
 
 import numpy as np
 import optuna
 from lightgbm import early_stopping
-
-from rent_model import CATEGORICAL, FAMILIES, FEATURES, TARGET, Blend, build_model, metrics, split
+from property_model import (
+    CATEGORICAL,
+    FAMILIES,
+    FEATURES,
+    TARGET,
+    Blend,
+    build_model,
+    metrics,
+    split,
+)
 
 ROUNDS = 3000  # most trees a model may grow; early stopping keeps fewer
 PATIENCE = 100  # stop once the validation error has not improved for this many trees

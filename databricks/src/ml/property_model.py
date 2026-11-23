@@ -1,5 +1,7 @@
 """Model code shared by training, backtest and monitoring, for the rent and the sale model.
 
+Named rent_model.py until Nov 2026: model versions logged before then carry it under that name.
+
 Plain pandas and scikit-learn, so the tests can run it without Databricks.
 """
 

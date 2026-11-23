@@ -2,13 +2,18 @@
 
 import numpy as np
 import pandas as pd
-
 from conftest import vehicle_files
 from listings import CSV_OPTIONS
 from model_search import search
-from rent_model import TARGET, error_bands, metrics, split
+from property_model import TARGET, error_bands, metrics, split
 from vehicle_model import CATEGORICAL, FEATURES, baseline_predict, good_deals, prepare
-from vehicles import VEHICLE_SCHEMA, build_vehicle_listings, dedupe_vehicles_daily, parse_vehicles, valid_vehicle_rows
+from vehicles import (
+    VEHICLE_SCHEMA,
+    build_vehicle_listings,
+    dedupe_vehicles_daily,
+    parse_vehicles,
+    valid_vehicle_rows,
+)
 
 LINES = {("mazda", "3"): 95e6, ("mazda", "cx-5"): 140e6, ("renault", "duster"): 70e6,
          ("renault", "logan"): 45e6, ("toyota", "hilux"): 180e6, ("chevrolet", "onix"): 60e6}

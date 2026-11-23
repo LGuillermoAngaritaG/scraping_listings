@@ -7,9 +7,16 @@ import sys
 from datetime import UTC, datetime
 from pathlib import Path
 
-from app.vehicles import autoexpo, autonal, casatoro, madiautos, maxiautos, metrousados
-from app.vehicles.client import Client
-from app.vehicles.common import COLUMNS
+from scraping_listings.vehicles import (
+    autoexpo,
+    autonal,
+    casatoro,
+    madiautos,
+    maxiautos,
+    metrousados,
+)
+from scraping_listings.vehicles.client import Client
+from scraping_listings.vehicles.common import COLUMNS
 
 SITES = {
     "autoexpo": autoexpo.fetch,

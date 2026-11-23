@@ -1,6 +1,6 @@
 """The model as it is registered and served: a price plus a likely range.
 
-Kept apart from rent_model.py so the local tests do not need mlflow. It is shipped
+Kept apart from property_model.py so the local tests do not need mlflow. It is shipped
 with the model (code_paths), so serving can load it.
 """
 
@@ -12,7 +12,7 @@ import pandas as pd
 class BandedRentModel(mlflow.pyfunc.PythonModel):
     """Wraps the price model. Returns prediction, low and high for each row.
 
-    The range uses the ratios from rent_model.error_bands: real prices of recent
+    The range uses the ratios from property_model.error_bands: real prices of recent
     held-out listings fell inside it 8 times in 10, per group (property type, or
     body type for vehicles).
     """

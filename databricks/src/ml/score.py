@@ -20,13 +20,12 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(inspect.currentframe().f_code
 
 import mlflow  # noqa: E402
 import pandas as pd  # noqa: E402
+import property_model  # noqa: E402
+import vehicle_model  # noqa: E402
 from mlflow import MlflowClient  # noqa: E402
 from mlflow.exceptions import MlflowException  # noqa: E402
+from property_model import CHAMPION, DATE, point_estimate  # noqa: E402
 from pyspark.sql import SparkSession  # noqa: E402
-
-import rent_model  # noqa: E402
-import vehicle_model  # noqa: E402
-from rent_model import CHAMPION, DATE, point_estimate  # noqa: E402
 
 HISTORY_COLUMNS = (
     "listings STRING, source STRING, listing_id STRING, scored_date DATE, listing_type STRING, label STRING, city STRING, "
@@ -46,7 +45,7 @@ def parse_args():
 
 def main():
     args = parse_args()
-    spec = vehicle_model if args.listings == "vehicle" else rent_model
+    spec = vehicle_model if args.listings == "vehicle" else property_model
     spark = SparkSession.builder.getOrCreate()
     prefix = f"{args.catalog}.{args.schema}"
 

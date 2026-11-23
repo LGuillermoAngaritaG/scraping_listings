@@ -1,7 +1,6 @@
+from listings import CSV_OPTIONS
 from pyspark import pipelines as dp
 from pyspark.sql import functions as F
-
-from listings import CSV_OPTIONS
 from vehicles import (
     VEHICLE_EXPECTATIONS,
     VEHICLE_SCHEMA,

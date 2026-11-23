@@ -1,4 +1,4 @@
-"""Tests for the used-car scrapers (app/vehicles), run on small fixtures without network."""
+"""Tests for the used-car scrapers (scraping_listings/vehicles), run on small fixtures without network."""
 
 import csv
 import json
@@ -8,7 +8,7 @@ from urllib.parse import urlencode
 
 import pytest
 
-from app.vehicles import (
+from scraping_listings.vehicles import (
     autoexpo,
     autonal,
     casatoro,
@@ -18,7 +18,7 @@ from app.vehicles import (
     maxiautos,
     metrousados,
 )
-from app.vehicles.common import (
+from scraping_listings.vehicles.common import (
     COLUMNS,
     canon_body_type,
     canon_city,

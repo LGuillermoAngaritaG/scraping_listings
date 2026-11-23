@@ -2,7 +2,7 @@
 
 from parsel import Selector
 
-from app.vehicles.common import cc_from_text, clean_text, make_row, split_brand
+from scraping_listings.vehicles.common import cc_from_text, clean_text, make_row, split_brand
 
 LIST_URL = "https://metrousados.com/compra-tu-carro/"
 

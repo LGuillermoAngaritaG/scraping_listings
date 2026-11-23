@@ -1,6 +1,6 @@
 """Autoexpo (Bogota): all used cars come from one WordPress (Vehica) API call."""
 
-from app.vehicles.common import canon_city, make_row
+from scraping_listings.vehicles.common import canon_city, make_row
 
 API_URL = "https://autoexpo.com.co/wp-json/vehica/v1/cars?condition=usado"
 

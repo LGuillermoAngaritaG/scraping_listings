@@ -1,0 +1,65 @@
+name: Tests
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  scrapers:
+    name: Lint and scraper tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies from the lock file
+        run: uv sync --locked
+
+      - name: Lint the whole repository
+        run: uv run ruff check .
+
+      - name: Scraper tests
+        run: uv run pytest
+
+  databricks:
+    name: Databricks tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: databricks
+    env:
+      # The car files are not in git, so the tests that need them are skipped here.
+      ALLOW_MISSING_DATA: "1"
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # the property CSV history is in git history
+
+      - name: Restore the property CSV history
+        working-directory: .
+        run: git restore --source "164f34f~1" -- data
+
+      - name: Set up Java for Spark
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies from the lock file
+        run: uv sync --locked
+
+      - name: Pipeline, model and alert tests
+        run: uv run pytest

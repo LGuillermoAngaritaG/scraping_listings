@@ -1,6 +1,5 @@
-from pyspark import pipelines as dp
-
 from listings import CSV_OPTIONS, RAW_SCHEMA, add_file_columns
+from pyspark import pipelines as dp
 
 VOLUME_PATH = spark.conf.get("volume_path")  # noqa: F821 (spark is provided by the pipeline)
 

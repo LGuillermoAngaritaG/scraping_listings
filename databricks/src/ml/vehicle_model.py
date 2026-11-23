@@ -1,14 +1,13 @@
 """What the vehicle price model needs to know about a car.
 
 The model types, their average, the split, the search and the metrics are the same as for
-property prices (rent_model.py, model_search.py). Only the columns, the baseline and the
+property prices (property_model.py, model_search.py). Only the columns, the baseline and the
 good-deal rule differ, so train.py and score.py take them from here for --listings vehicle.
 """
 
 import numpy as np
 import pandas as pd
-
-from rent_model import TARGET
+from property_model import TARGET
 
 CATEGORICAL = ["source", "city", "brand", "line", "transmission", "fuel", "body_type"]
 NUMERIC = ["year", "km", "engine_cc"]

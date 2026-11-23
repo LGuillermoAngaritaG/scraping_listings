@@ -1,0 +1,116 @@
+name: Scrape (shared steps)
+
+# Called by the Fincaraiz, Metrocuadrado and vehicle workflows: one job per target, all in
+# parallel. Each job runs the scraper, keeps its files as an artifact and uploads them to a
+# Databricks volume.
+on:
+  workflow_call:
+    inputs:
+      command:
+        description: Scraper command (scrape or scrape-vehicles)
+        type: string
+        required: true
+      targets:
+        description: JSON list of arguments for the command, one job each
+        type: string
+        required: true
+      upload:
+        description: Files in data/ that feed the pipeline and go to Databricks
+        type: string
+        required: true
+      volume:
+        description: Unity Catalog volume path
+        type: string
+        required: true
+      playwright:
+        description: Install the Playwright browser
+        type: boolean
+        default: false
+      timeout-minutes:
+        type: number
+        required: true
+    secrets:
+      # Not required, so the scrape still runs and keeps its artifact when they are missing;
+      # the upload step then fails the run.
+      DATABRICKS_HOST:
+        required: false
+      DATABRICKS_TOKEN:
+        required: false
+
+permissions:
+  contents: read  # The scraped files go to Databricks, not to the repository
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false  # A failing target must not stop the others
+      matrix:
+        target: ${{ fromJSON(inputs.targets) }}
+    env:
+      # Databricks keeps the only lasting copy of the scraped files, so the upload must work.
+      DATABRICKS_HOST: ${{ secrets.DATABRICKS_HOST }}
+      DATABRICKS_TOKEN: ${{ secrets.DATABRICKS_TOKEN }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Install dependencies from the lock file
+        # --locked fails when uv.lock does not match pyproject.toml, so every run uses the
+        # library versions the tests ran with.
+        run: |
+          uv sync --locked --no-dev
+          echo "$PWD/.venv/bin" >> "$GITHUB_PATH"
+
+      - name: Install Playwright browsers
+        if: inputs.playwright
+        run: |
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Run scraper
+        run: ${{ inputs.command }} ${{ matrix.target }}
+        timeout-minutes: ${{ inputs.timeout-minutes }}
+
+      - name: Collect the files this run created
+        if: always()
+        run: |
+          # git ignores the scraped CSV files (.gitignore), so list the ignored ones.
+          mkdir -p new
+          git ls-files --others --ignored --exclude-standard 'data/*.csv' | xargs -r cp -t new/
+
+      - name: Keep the files as an artifact
+        uses: actions/upload-artifact@v4
+        if: always()  # Keep them even if the scraper fails
+        with:
+          name: ${{ inputs.command }}-${{ matrix.target }}
+          path: new/*.csv
+          if-no-files-found: ignore
+          retention-days: 90  # the most a public repository allows
+
+      - name: Set up Databricks CLI
+        if: always()
+        uses: databricks/setup-cli@v1.27.0
+
+      - name: Upload new CSV files to Databricks volume
+        # A failed upload fails the run, so GitHub sends its failure email. The files stay in
+        # the artifact above for 90 days, to upload again by hand.
+        if: always()
+        env:
+          UPLOAD: ${{ inputs.upload }}
+          VOLUME: ${{ inputs.volume }}
+        run: |
+          # Try every file, then fail if any failed.
+          failed=0
+          for f in new/$UPLOAD; do
+            [ -e "$f" ] || continue
+            databricks fs cp "$f" "dbfs:${VOLUME}/$(basename "$f")" --overwrite || failed=1
+          done
+          exit $failed

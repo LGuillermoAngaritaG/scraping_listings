@@ -1,13 +1,13 @@
-from app.models.scraper import ScraperOutput, ScraperInput
-from app.services.yaml_loader import YamlLoaderListings
-from app.services.data_saver import save_data
-from app.scrapers.scrapy_scraper import ScrapyScraper
-from app.scrapers.playwright_scraper import PlaywrightScraper
 import argparse
 import logging
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urljoin
+
+from scraping_listings.models.scraper import ScraperInput, ScraperOutput
+from scraping_listings.scrapers.playwright_scraper import PlaywrightScraper
+from scraping_listings.scrapers.scrapy_scraper import ScrapyScraper
+from scraping_listings.services.yaml_loader import YamlLoaderListings
 
 # Add logging configuration
 logging.basicConfig(
@@ -22,13 +22,10 @@ class Scraper:
         # Ensure data directory exists
         os.makedirs("data", exist_ok=True)
 
-    def _select_engine(self, scraper_input: ScraperInput):
-        return ScrapyScraper(scraper_input) if scraper_input.scrapying_engine == "scrapy" else PlaywrightScraper(scraper_input)
-
     def scrape_details(self, scraper_input: ScraperInput, urls: list[str], output_filename: str | None = None):
         """
         Scrape details from a list of URLs.
-        
+
         :param scraper_input: Configuration for the scraper
         :param urls: List of URLs to scrape
         :param output_filename: Optional filename for saving results. If not provided, generates one.
@@ -36,32 +33,33 @@ class Scraper:
         """
         scraper_engine = scraper_input.scrapying_engine
         scraper_input.urls = urls
-        
+
         # Generate filename with timestamp for incremental saving if not provided
         if output_filename is None:
-            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
             output_filename = f"data/{scraper_input.name}_details_{timestamp}.csv"
-        
+
         scraper = ScrapyScraper(scraper_input, output_filename) if scraper_engine == "scrapy" else PlaywrightScraper(scraper_input, output_filename)
-        results = [result for result in scraper.scrape()]
-        
+        results = list(scraper.scrape())
+
         # Results will be empty if incremental save is used, which is the expected behavior
         return results
 
     def _get_urls(self, scraper_input: ScraperInput, results: list[ScraperOutput], pages_filename: str | None = None):
         """
         Extract URLs from scraped results or from saved CSV file.
-        
+
         :param scraper_input: Configuration for the scraper
         :param results: List of scraped results (may be empty if incremental save was used)
         :param pages_filename: Path to pages CSV file if results is empty
         :return: List of URLs to scrape
         """
-        import pandas as pd
         import ast
-        
+
+        import pandas as pd
+
         urls = []
-        
+
         # If results are empty, read from the saved CSV file
         if not results and pages_filename:
             df = pd.read_csv(pages_filename)
@@ -75,58 +73,57 @@ class Scraper:
             for result in results:
                 for url in result.information['urls']:
                     urls.append(url['url'])
-        
+
         # if there is no base_url, add it
         if urls:
             initial_url = scraper_input.urls[0]
             base_url = scraper_input.base_url or "/".join(initial_url.split("/")[:2])
             if "http" not in urls[0]:
                 urls = [urljoin(base_url, url) for url in urls]
-        
+
         return urls
 
     def scrape_urls(self, scraper_input: ScraperInput, output_filename: str | None = None):
         """
         Scrape URLs from pages.
-        
+
         :param scraper_input: Configuration for the scraper
         :param output_filename: Optional filename for saving results. If not provided, generates one.
         :return: List of scraped results (empty if using incremental save)
         """
         scraper_engine = scraper_input.scrapying_engine
-        
+
         # Generate filename with timestamp for incremental saving if not provided
         if output_filename is None:
-            timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+            timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
             output_filename = f"data/{scraper_input.name}_pages_{timestamp}.csv"
-        
+
         scraper = ScrapyScraper(scraper_input, output_filename) if scraper_engine == "scrapy" else PlaywrightScraper(scraper_input, output_filename)
-        results = [result for result in scraper.scrape()]
-        
+        results = list(scraper.scrape())
+
         # Results will be empty if incremental save is used, which is the expected behavior
         return results
 
     def scrape_from_yaml(self, scraper_name: str):
         """
         Main function to scrape data based on YAML configuration.
-        
+
         :param scraper_name: Name of the scraper configuration to use
         """
-        yaml_loader = YamlLoaderListings()
-        scraper_inputs = yaml_loader.load()
+        scraper_inputs = self.yaml_loader.load()
         for scraper_input in scraper_inputs:
             if scraper_input['name'] == scraper_name:
                 # Generate timestamp for this scraping session
-                timestamp = datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')
+                timestamp = datetime.now(UTC).strftime('%Y%m%d_%H%M%S')
                 pages_filename = f"data/{scraper_input['name']}_pages_{timestamp}.csv"
                 details_filename = f"data/{scraper_input['name']}_details_{timestamp}.csv"
-                
+
                 # Scrape urls from pages
                 results = self.scrape_urls(scraper_input['pages_input'], pages_filename)
-                
+
                 # Scrape details from urls
                 urls = self._get_urls(scraper_input['pages_input'], results, pages_filename)
-                
+
                 # Scrape details from urls
                 results = self.scrape_details(scraper_input['details_input'], urls, details_filename)
 

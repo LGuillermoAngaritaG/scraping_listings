@@ -16,7 +16,7 @@ vehicles (--listings), each with its own registered model and endpoint. Steps:
 The registered model returns a price and a likely range (low, high). The range
 comes from the challenger's errors on the test rows, per property type (body type
 for vehicles). The columns, baseline and good-deal rule of each kind of listing come
-from rent_model.py or vehicle_model.py.
+from property_model.py or vehicle_model.py.
 """
 
 import argparse
@@ -34,19 +34,17 @@ import mlflow  # noqa: E402
 import numpy as np  # noqa: E402
 import optuna  # noqa: E402
 import pandas as pd  # noqa: E402
+import property_model  # noqa: E402
 import sklearn  # noqa: E402
+import vehicle_model  # noqa: E402
 import xgboost  # noqa: E402
+from banded_model import BandedRentModel  # noqa: E402
 from databricks.sdk import WorkspaceClient  # noqa: E402
 from databricks.sdk.service.serving import EndpointCoreConfigInput, ServedEntityInput  # noqa: E402
 from mlflow import MlflowClient  # noqa: E402
 from mlflow.exceptions import MlflowException  # noqa: E402
-from pyspark.sql import SparkSession  # noqa: E402
-
-import rent_model  # noqa: E402
-import vehicle_model  # noqa: E402
-from banded_model import BandedRentModel  # noqa: E402
 from model_search import search  # noqa: E402
-from rent_model import (  # noqa: E402
+from property_model import (  # noqa: E402
     CHALLENGER,
     CHAMPION,
     TARGET,
@@ -56,6 +54,7 @@ from rent_model import (  # noqa: E402
     point_estimate,
     split,
 )
+from pyspark.sql import SparkSession  # noqa: E402
 
 # Pinned to the training environment so serving unpickles the same objects.
 PIP_REQUIREMENTS = [
@@ -136,7 +135,7 @@ def deploy_endpoint(endpoint_name: str, model_name: str, version: str):
 
 def main():
     args = parse_args()
-    spec = vehicle_model if args.listings == "vehicle" else rent_model
+    spec = vehicle_model if args.listings == "vehicle" else property_model
     spark = SparkSession.builder.getOrCreate()
     client = MlflowClient()
     mlflow.set_experiment(args.experiment)
@@ -186,8 +185,8 @@ def main():
         info = mlflow.pyfunc.log_model(
             name="model",
             python_model=BandedRentModel(model, spec.FEATURES, bands, default_band, spec.BAND_GROUP),
-            # rent_model.py holds Blend, which the average of the three model types is.
-            code_paths=[os.path.join(HERE, "banded_model.py"), os.path.join(HERE, "rent_model.py")],
+            # property_model.py holds Blend, which the average of the three model types is.
+            code_paths=[os.path.join(HERE, "banded_model.py"), os.path.join(HERE, "property_model.py")],
             input_example=train[spec.FEATURES].head(5),
             pip_requirements=PIP_REQUIREMENTS,
             registered_model_name=args.model_name,

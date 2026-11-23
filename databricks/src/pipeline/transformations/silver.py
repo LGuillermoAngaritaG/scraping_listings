@@ -1,6 +1,5 @@
-from pyspark import pipelines as dp
-
 from listings import SILVER_EXPECTATIONS, dedupe_daily, parse_listings
+from pyspark import pipelines as dp
 
 
 @dp.materialized_view(

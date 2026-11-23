@@ -1,39 +1,91 @@
-# Property Scraper
+# Colombian Rent, Sale and Used-Car Prices
 
 > **DISCLAIMER**: This project is for academic and educational purposes only. It demonstrates web scraping techniques, config-driven design, and data extraction patterns. Not intended for commercial use or large-scale data harvesting. Users are responsible for complying with applicable laws and website Terms of Service.
 
-## Overview
+An end-to-end data and machine learning project. It scrapes property listings (rentals and sales in Bogota, Medellin, Envigado and Sabaneta) and used cars from six dealers, then on Databricks it cleans them, learns what each listing should cost, flags the good deals and sends them by email every morning.
 
-A config-driven web scraper for extracting property listing data from Colombian real estate websites. Supports two scraping engines:
+![Databricks App estimate](databricks/docs/screenshots/app-estimate.png)
 
-- **Scrapy**: Fast scraping for static HTML content
-- **Playwright**: Browser automation for JavaScript-rendered pages
+## What it does
 
-### Features
+- **Collects listings every day.** GitHub Actions runs 16 property searches on Fincaraiz and Metrocuadrado 7 times a day, and scrapes six used-car dealers once a day. Each run sends its files straight to Databricks.
+- **Cleans them in a medallion pipeline.** A Lakeflow pipeline loads only new files (Auto Loader), then builds bronze, silver and gold tables for properties and for cars. Data rules drop broken rows, and each listing gets one row per day.
+- **Predicts three prices.** One model for monthly rent, one for sale price and one for used-car price. Each month, Optuna tunes LightGBM, CatBoost and XGBoost, and the best one or their average wins.
+- **Gives a likely range, not only a number.** Each estimate comes with a low and a high price, taken from the model's real errors on unseen listings.
+- **Never promotes a worse model.** A new version becomes the champion only if it beats both the old champion and a simple baseline on the same test listings. A weekly check starts a retrain when the rent error grows too much.
+- **Finds good deals.** Every day, each active listing is priced. A listing is a good deal when it asks less than the low end of its likely range.
+- **Emails the new deals.** Two emails a day, one for houses and apartments for sale and one for used cars. Each deal has a link and the reason it is a deal. A deal more than 50% below the model price carries a warning, because that is often a data error.
+- **Shows it all.** A Streamlit app (estimate a price, see similar listings, and a clickable diagram of how it was built), an AI/BI dashboard with barrio maps, two model serving endpoints and a Genie space for questions in plain language.
 
-- Two-phase scraping: extract URLs from search pages, then details from individual listings
-- Config-driven: define scrapers in `config.yaml` with XPath selectors
-- Automatic pagination handling
-- Shadow DOM support for modern web components
-- Incremental CSV saving (data saved continuously)
-- GitHub Actions automation with scheduled runs
+## Architecture
 
-### Data Analysis
+![Architecture: scrapers on GitHub Actions feed Databricks, which cleans the data, trains and serves the models, scores every listing and feeds the app, the dashboard and the emails](docs/diagrams/architecture.drawio.png)
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/LGuillermoAngaritaG/scraping_listings/blob/main/analyze_artifacts.ipynb)
+The [Databricks README](databricks/README.md) has the table-level diagram, every design decision and the setup steps. Both diagrams are draw.io files in `docs/diagrams/`; the architecture PNG holds its own diagram, so it also opens in draw.io.
 
-Use the Jupyter notebook to analyze scraped data with pandas, visualizations, and statistics.
+## How it works
 
-## Installation
+![Process: what runs several times a day, every day, every month and every week](docs/diagrams/process.png)
 
-### 1. Clone and Setup
+1. **Scrape.** The property scrapers are config-driven: each site is one entry in `config.yaml` with XPath selectors, run with Scrapy or Playwright. They first collect listing URLs from the search pages, then open each listing. The car scraper reads each dealer's own catalog feed (WordPress, WooCommerce, PrestaShop or Next.js JSON) and writes every dealer to the same columns.
+2. **Upload.** Each GitHub Actions run uploads its new CSV files to a Unity Catalog volume. Databricks keeps the only lasting copy, so a failed upload fails the run and GitHub sends an email. Each run also keeps its files as an artifact for 90 days.
+3. **Clean.** The daily job (07:00 Bogota time) refreshes the pipeline. Bronze keeps the raw rows. Silver parses prices, areas and rooms with built-in Spark functions and drops rows that break a data rule. Gold has one table each for rentals, sales and cars.
+4. **Train.** On the 1st of each month, each model is retrained. It is tested on the listings first seen in the last 30 days (or on a random 1 in 5 for cities and models with less than 60 days of data). The winner gets the `retador` alias, and becomes `campeon` only if it is better. The training job also points the rent and sale serving endpoints at their champion; the app runs the car model itself.
+5. **Score.** After the refresh, the daily job prices every active listing, stores the price and its range, flags the good deals and keeps each day's deals in a history table.
+6. **Tell.** Right after scoring, two Databricks SQL alerts compare today's deals with the previous day's and email only the new ones. No mail service or key is needed: Databricks sends them.
+7. **Watch.** A weekly monitor checks the rent model's error on new listings and starts a retrain when it passes the limit. A backtest measures how the error grows 1, 2 and 3 months after training.
 
-```bash
-git clone https://github.com/yourusername/scraping_listings.git
-cd scraping_listings
+## Results
+
+Test error (MAPE: the average percentage miss) on listings the model did not train on, against a simple baseline.
+
+| Model | Model error | Baseline error | Tested on |
+|---|---|---|---|
+| Rent | 38% | 81% (median of the barrio) | Listings first seen in the last 30 days, local run on data up to 22 Nov 2026 |
+| Sale | 19.4% | 52.5% (median of the barrio) | A random 1 in 5 of the first days of data, retrain of Nov 2026 |
+| Used cars | 10.4% | 19.8% (median of the same line and year) | A random 1 in 5 of the first scrape, 23 Nov 2026 |
+
+The rent error is high because most recent rentals have no area (a scraper problem, now fixed) and because the listings say nothing about condition or finishes. The sale and car numbers will look worse once they are tested on later months. The app shows the live numbers of each model.
+
+## Screenshots
+
+| | |
+|---|---|
+| ![Dashboard barrio maps](databricks/docs/screenshots/dashboard-maps.png) | ![App diagram with the Training step open](databricks/docs/screenshots/app-pipeline-diagram.png) |
+| Dashboard: median price per barrio in Bogota and in Medellin, Envigado and Sabaneta | App: the clickable diagram of how the estimate is built |
+| ![inmuebles-daily-refresh run graph](databricks/docs/screenshots/daily-refresh-job.png) | ![MLflow run with metrics and tuned parameters](databricks/docs/screenshots/mlflow-run.png) |
+| The daily job: refresh, score each model, locate barrios | A monthly retrain in MLflow: each candidate's error and the tuned settings |
+
+More in [Running on Databricks](databricks/README.md#running-on-databricks).
+
+## Repository layout
+
+```
+scraping_listings/
+├── .github/workflows/      # Scheduled scrapers that upload to Databricks
+├── app/
+│   ├── main.py             # Property scraper entry point (scrape)
+│   ├── models/             # Pydantic models
+│   ├── scrapers/           # Scrapy and Playwright implementations
+│   ├── services/           # Config loader, data saver
+│   ├── utils/              # Shadow DOM utilities
+│   └── vehicles/           # Used-car dealer scrapers (scrape-vehicles)
+├── databricks/             # Databricks bundle: pipeline, models, jobs, alerts, dashboard, app
+├── docs/diagrams/          # Architecture and process diagrams (draw.io)
+├── tests/                  # Scraper tests (fixtures, no network)
+├── config.yaml             # Property scraper configurations
+├── analyze_artifacts.ipynb # Local analysis notebook
+└── pyproject.toml          # Dependencies
 ```
 
-### 2. Install Dependencies
+## Run the scrapers
+
+### Install
+
+```bash
+git clone https://github.com/LGuillermoAngaritaG/scraping_listings.git
+cd scraping_listings
+```
 
 ```bash
 # Install uv (recommended)
@@ -51,25 +103,19 @@ playwright install chromium
 playwright install-deps chromium
 ```
 
-### 3. Verify Installation
-
 ```bash
 scrape --help
 ```
 
-## Usage
-
-### Basic Command
+### Properties
 
 ```bash
 # Run a scraper by name (from config.yaml)
 scrape fincaraiz-bogota-leasing
-scrape metrocuadrado-bogota-leasing
+scrape metrocuadrado-bogota-sale
 ```
 
-### Output
-
-Scraped data is saved to `data/` directory as CSV files:
+Each run writes CSV files to `data/`:
 
 ```
 data/
@@ -77,7 +123,32 @@ data/
 └── fincaraiz-bogota-leasing_details_20241016_140612.csv
 ```
 
-## Configuration
+Features:
+
+- Two-phase scraping: extract URLs from search pages, then details from individual listings
+- Config-driven: define scrapers in `config.yaml` with XPath selectors
+- Automatic pagination handling
+- Shadow DOM support for modern web components
+- Incremental CSV saving (data saved continuously)
+
+### Used cars
+
+```bash
+scrape-vehicles all        # every dealer, one after the other
+scrape-vehicles casatoro   # one dealer: autoexpo, casatoro, autonal, maxiautos, madiautos, metrousados
+```
+
+Each dealer is one module in `app/vehicles/`, which reads the dealer's own catalog feed or its pages, at most one request a second per site. Every dealer is written to the same columns, one file per dealer and run:
+
+```
+data/vehicles-casatoro_20261123_081339.csv
+source, listing_id, url, title, brand, line, version, year, km, price_cop, transmission, fuel,
+body_type, engine_cc, color, plate_digit, city, branch, scraped_at
+```
+
+Only the last digit of a plate is kept; full plates and VINs are never written.
+
+### Configuration
 
 Scrapers are defined in `config.yaml`. Basic structure:
 
@@ -107,55 +178,30 @@ Each site has one full entry. The other searches (other cities, sales) reuse its
     pages_url: https://www.fincaraiz.com.co/venta/medellin/antioquia
 ```
 
-## GitHub Actions Automation
+## Automation
 
-Two workflows run scrapers automatically, each with 8 searches (rent and sale in Bogota, Medellin, Envigado and Sabaneta). Each search runs as its own parallel job:
+Three workflows run the scrapers on GitHub Actions. Each property search runs as its own parallel job:
 
-- **Fincaraiz**: Every 6 hours (see `.github/workflows/scrape-fincaraiz.yml`)
-- **Metrocuadrado**: Every 8 hours (see `.github/workflows/scrape-metrocuadrado.yml`)
+| Workflow | Schedule | Searches | Databricks volume |
+|---|---|---|---|
+| Fincaraiz (`scrape-fincaraiz.yml`) | Every 6 hours | Rent and sale in Bogota, Medellin, Envigado and Sabaneta | `csv_diarios` |
+| Metrocuadrado (`scrape-metrocuadrado.yml`) | Every 8 hours | The same 8 searches | `csv_diarios` |
+| Used cars (`scrape-vehicles.yml`) | Once a day, 03:17 Colombia time | All six dealers in one job | `csv_vehiculos` |
 
-Scraped data is:
-- Committed and pushed to the `data/` directory by one final job per run
-- Uploaded as artifacts (30-day retention)
-- Uploaded to a Databricks volume, when the `DATABRICKS_HOST` and `DATABRICKS_TOKEN` secrets exist
+To run one by hand: **Actions** tab on GitHub, pick the workflow, **Run workflow**.
 
-## Rent and Sale Price Prediction on Databricks
+The scraped files are not stored in this repository. Each run:
 
-The scraped listings feed a Databricks pipeline (bronze, silver, gold), two price models (rent and
-sale, each the best of three tuned model types or their average) with champion/challenger promotion,
-two serving endpoints, a dashboard and a Streamlit app.
-See [databricks/README.md](databricks/README.md) for the architecture, decisions, setup and
-[screenshots of it running on Databricks](databricks/README.md#running-on-databricks).
+- Uploads its new files to a Databricks volume, which keeps the only lasting copy. The run fails when an upload fails or the `DATABRICKS_HOST` and `DATABRICKS_TOKEN` secrets are missing.
+- Keeps its files as a run artifact for 90 days, the backup to upload again by hand.
 
-![Databricks App estimate](databricks/docs/screenshots/app-estimate.png)
+The CSV history up to 23 Nov 2026 was in `data/` and is still in git history. The local Databricks tests and the notebook need it. To get it back (the files are ignored by git, so they stay local):
 
-### Manual Trigger
-
-1. Go to **Actions** tab on GitHub
-2. Select workflow
-3. Click **Run workflow**
-
-
-
-## Project Structure
-
-```
-scraping_listings/
-├── .github/workflows/       # GitHub Actions
-├── app/
-│   ├── main.py             # Entry point
-│   ├── models/             # Pydantic models
-│   ├── scrapers/           # Scrapy & Playwright implementations
-│   ├── services/           # Config loader, data saver
-│   └── utils/              # Shadow DOM utilities
-├── data/                   # Output CSV files
-├── databricks/             # Databricks bundle: pipeline, model jobs, app
-├── config.yaml             # Scraper configurations
-├── analyze_artifacts.ipynb # Data analysis notebook
-└── pyproject.toml          # Dependencies
+```bash
+git restore --source "$(git log -1 --format=%H --diff-filter=D -- data)~1" -- data
 ```
 
-## Ethical Considerations
+## Ethical considerations
 
 - Always check `robots.txt` before scraping
 - Use reasonable rate limiting

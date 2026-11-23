@@ -1,0 +1,100 @@
+<mxfile host="gridgram" agent="improved-drawio">
+  <diagram name="Page-1" id="page1">
+    <mxGraphModel grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" math="0" background="#FFFFFF">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="title" value="How a listing becomes an email" style="text;html=1;strokeColor=none;fillColor=none;fontFamily=Helvetica;whiteSpace=wrap;align=left;verticalAlign=middle;fontStyle=1;fontSize=17;fontColor=#1F2937;" vertex="1" parent="1">
+          <mxGeometry x="20" y="15" width="860" height="30" as="geometry" />
+        </mxCell>
+        <mxCell id="group_several_times_a_day_github_actio" value="Several times a day: GitHub Actions" style="rounded=1;absoluteArcSize=1;arcSize=16;html=1;whiteSpace=wrap;container=1;collapsible=0;recursiveResize=0;fillColor=#F7F8FA;strokeColor=#9AA3AF;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#1F2937;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="10" y="50" width="890" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="group_every_day_at_07_00_daily_job" value="Every day at 07:00: daily job" style="rounded=1;absoluteArcSize=1;arcSize=16;html=1;whiteSpace=wrap;container=1;collapsible=0;recursiveResize=0;fillColor=#F7F8FA;strokeColor=#9AA3AF;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#1F2937;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="10" y="178" width="890" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="group_1st_of_each_month_retrain_job" value="1st of each month: retrain job" style="rounded=1;absoluteArcSize=1;arcSize=16;html=1;whiteSpace=wrap;container=1;collapsible=0;recursiveResize=0;fillColor=#F7F8FA;strokeColor=#9AA3AF;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#1F2937;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="10" y="306" width="890" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="group_every_week_monitor_job" value="Every week: monitor job" style="rounded=1;absoluteArcSize=1;arcSize=16;html=1;whiteSpace=wrap;container=1;collapsible=0;recursiveResize=0;fillColor=#F7F8FA;strokeColor=#9AA3AF;fontFamily=Helvetica;fontStyle=1;fontSize=13;fontColor=#1F2937;verticalAlign=top;spacingTop=4;" vertex="1" parent="1">
+          <mxGeometry x="10" y="434" width="890" height="104" as="geometry" />
+        </mxCell>
+        <mxCell id="box_scrape" value="&lt;b&gt;Scrape&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;16 searches, 6 dealers&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_several_times_a_day_github_actio">
+          <mxGeometry x="10" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_upload" value="&lt;b&gt;Upload&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;to a Databricks volume&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_several_times_a_day_github_actio">
+          <mxGeometry x="190" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_clean" value="&lt;b&gt;Clean&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;bronze, silver, gold&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_every_day_at_07_00_daily_job">
+          <mxGeometry x="190" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_score_listings" value="&lt;b&gt;Score listings&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;price, range, good deal&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_every_day_at_07_00_daily_job">
+          <mxGeometry x="370" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_find_new_deals" value="&lt;b&gt;Find new deals&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;not a deal yesterday&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_every_day_at_07_00_daily_job">
+          <mxGeometry x="550" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_email_you" value="&lt;b&gt;Email you&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;link and reason each&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E4F2E6;strokeColor=#3C8D4B;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_every_day_at_07_00_daily_job">
+          <mxGeometry x="730" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_tune_models" value="&lt;b&gt;Tune models&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;3 model types, Optuna&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_1st_of_each_month_retrain_job">
+          <mxGeometry x="190" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_test" value="&lt;b&gt;Test&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;last 30 days of listings&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_1st_of_each_month_retrain_job">
+          <mxGeometry x="370" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_promote_if_better" value="&lt;b&gt;Promote if better&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;than champion and baseline&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_1st_of_each_month_retrain_job">
+          <mxGeometry x="550" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_new_champion" value="&lt;b&gt;New champion&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;app, endpoint, scoring&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E4F2E6;strokeColor=#3C8D4B;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_1st_of_each_month_retrain_job">
+          <mxGeometry x="730" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="box_check_rent_error" value="&lt;b&gt;Check rent error&lt;/b&gt;&lt;br&gt;&lt;font color=&quot;#5B6472&quot; style=&quot;font-size:11px&quot;&gt;retrain when above 60%&lt;/font&gt;" style="rounded=1;absoluteArcSize=1;arcSize=12;whiteSpace=wrap;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;strokeWidth=1.2;fontFamily=Helvetica;fontSize=13;fontColor=#1F2937;spacing=6;verticalAlign=middle;" vertex="1" parent="group_every_week_monitor_job">
+          <mxGeometry x="190" y="34" width="150" height="60" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_scrape_upload" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_scrape" target="box_upload">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_upload_clean" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_upload" target="box_clean">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_clean_score_listings" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_clean" target="box_score_listings">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_score_listings_find_new_deals" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_score_listings" target="box_find_new_deals">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_find_new_deals_email_you" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_find_new_deals" target="box_email_you">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_clean_tune_models" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_clean" target="box_tune_models">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_tune_models_test" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_tune_models" target="box_test">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_test_promote_if_better" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_test" target="box_promote_if_better">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_promote_if_better_new_champion" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_promote_if_better" target="box_new_champion">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge_check_rent_error_tune_models" value="" style="edgeStyle=orthogonalEdgeStyle;rounded=0;html=1;strokeColor=#1F2937;strokeWidth=1.2;endArrow=block;endFill=1;endSize=5;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;" edge="1" parent="1" source="box_check_rent_error" target="box_tune_models">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_step" value="" style="rounded=1;absoluteArcSize=1;arcSize=6;html=1;fillColor=#E8EDF6;strokeColor=#4A6FA5;" vertex="1" parent="1">
+          <mxGeometry x="20" y="562" width="20" height="12" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_text_step" value="Automatic step" style="text;html=1;strokeColor=none;fillColor=none;fontFamily=Helvetica;align=left;verticalAlign=middle;fontSize=11;fontColor=#5B6472;" vertex="1" parent="1">
+          <mxGeometry x="46" y="558" width="88.08" height="20" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_live" value="" style="rounded=1;absoluteArcSize=1;arcSize=6;html=1;fillColor=#E4F2E6;strokeColor=#3C8D4B;" vertex="1" parent="1">
+          <mxGeometry x="148.08" y="562" width="20" height="12" as="geometry" />
+        </mxCell>
+        <mxCell id="legend_text_live" value="What you get" style="text;html=1;strokeColor=none;fillColor=none;fontFamily=Helvetica;align=left;verticalAlign=middle;fontSize=11;fontColor=#5B6472;" vertex="1" parent="1">
+          <mxGeometry x="174.08" y="558" width="76.64" height="20" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
